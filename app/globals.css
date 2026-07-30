@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * §08.5 — Light theme throughout. Dense, high-contrast, legible in bright sun.
+ * System font stack for speed. Numbers in tabular monospace so columns align.
+ * Colour used only for state, never for decoration.
+ *
+ * No dark mode: the admin is standing in a yard in daylight, and a dark UI on
+ * a mid-range Android screen in the sun is unreadable.
+ */
+
+@theme {
+  --color-paper: #f4f6f7;
+  --color-card: #ffffff;
+
+  --color-ink: #15181c;
+  --color-ink-2: #4a545e;
+  --color-ink-3: #7c8791;
+
+  --color-steel: #2f5169;
+  --color-steel-soft: #e4edf3;
+  --color-rule: #d9dfe4;
+
+  /* State only: amber pending, green settled, red overdue, grey synced. */
+  --color-amber: #8a5b0b;
+  --color-amber-soft: #fbf1dc;
+  --color-green: #2c6046;
+  --color-green-soft: #e4f0e9;
+  --color-red: #8c2f2f;
+  --color-red-soft: #f8e6e6;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Money and quantities line up in columns or they are hard to scan. */
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * §01 design constraint: usable one-handed at 360px with 44px touch targets.
+ * Enforced here rather than remembered at each call site.
+ */
+@utility tap {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* §08.5: no animation beyond 150ms state transitions. */
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a,
+  input,
+  select {
+    transition-duration: 150ms;
+  }
 }

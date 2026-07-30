@@ -1,65 +1,201 @@
-import Image from "next/image";
+/**
+ * §08.1 dashboard.
+ *
+ * "Out today, due today, overdue, low stock." Two of those need bills, which
+ * arrive at M4 — see `lib/dashboard/service.ts` for what stands in until then.
+ */
 
-export default function Home() {
+import Link from 'next/link';
+
+import { Card, Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
+import { BigMoney, Money, Qty } from '@/components/ui/money';
+import { requirePageSession } from '@/lib/auth/page';
+import { today } from '@/lib/clock';
+import { getDashboard, LONG_HELD_DAYS } from '@/lib/dashboard/service';
+import { formatDay, formatDayFull, formatDays, MOVEMENT_LABEL } from '@/lib/format';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export default async function HomePage() {
+  const session = await requirePageSession('/');
+  const asOf = today();
+  const data = await getDashboard(session, asOf);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <Screen>
+      <PageHeader
+        title="Yard Ledger"
+        subtitle={`${session.name} · ${formatDayFull(asOf)}`}
+        action={
+          <Link
+            href="/issue"
+            className="tap inline-flex items-center rounded bg-steel px-4 font-medium text-white"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Issue
+          </Link>
+        }
+      />
+
+      <Card className="p-4">
+        <p className="text-sm font-medium text-ink-2">Out on hire</p>
+        <BigMoney paise={data.totals.outstanding} tone={data.totals.outstanding > 0 ? 'due' : 'settled'} />
+        <p className="mt-1 text-sm text-ink-2">
+          <Qty qty={data.totals.qtyOut} /> across {data.totals.openAccounts}{' '}
+          {data.totals.openAccounts === 1 ? 'open site' : 'open sites'}
+        </p>
+      </Card>
+
+      <SectionTitle>Today</SectionTitle>
+      {data.today.length === 0 ? (
+        <EmptyState
+          title="Nothing has moved today"
+          action={
+            <Link
+              href="/issue"
+              className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+            >
+              Record an issue
+            </Link>
+          }
+        >
+          Gate passes recorded today — out and back — appear here.
+        </EmptyState>
+      ) : (
+        <List>
+          {data.today.map((movement, index) => (
+            <li key={`${movement.accountId}-${index}`}>
+              <RowLink href={`/accounts/${movement.accountId}`}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium">
+                    {MOVEMENT_LABEL[movement.type] ?? movement.type} <Qty qty={movement.qty} /> ×{' '}
+                    {movement.itemName}
+                  </span>
+                  {movement.gatePassNo && (
+                    <span className="shrink-0 text-xs text-ink-3">{movement.gatePassNo}</span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-sm text-ink-2">
+                  {movement.customerName} · {movement.siteName}
+                </p>
+              </RowLink>
+            </li>
+          ))}
+        </List>
+      )}
+
+      {/* §09 reminder queue. Nothing is sent automatically — the admin taps
+          through it, one WhatsApp at a time, to contractors they know. */}
+      {data.overdue.length > 0 && (
+        <>
+          <SectionTitle aside={<span className="text-sm text-ink-2">tap to remind</span>}>
+            Overdue bills
+          </SectionTitle>
+          <List>
+            {data.overdue.map((bill) => (
+              <li key={bill.id}>
+                <RowLink href={`/bills/${bill.id}`}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium">
+                      {bill.customerName} <Chip tone="red">overdue</Chip>
+                    </span>
+                    <Money paise={bill.outstanding} className="font-medium text-red" />
+                  </div>
+                  <p className="mt-0.5 text-sm text-ink-2">
+                    {bill.invoiceNo} · {bill.siteName}
+                    {bill.dueOn && ` · due ${formatDayFull(bill.dueOn)}`}
+                  </p>
+                </RowLink>
+              </li>
+            ))}
+          </List>
+        </>
+      )}
+
+      {data.overLimit.length > 0 && (
+        <>
+          <SectionTitle>Over their credit limit</SectionTitle>
+          <List>
+            {data.overLimit.map((customer) => (
+              <li key={customer.customerId}>
+                <RowLink href={`/customers/${customer.customerId}`}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium">{customer.customerName}</span>
+                    <Money paise={customer.balance} className="font-medium text-red" />
+                  </div>
+                  <p className="mt-0.5 text-sm text-ink-2">
+                    limit <Money paise={customer.creditLimit} />
+                  </p>
+                </RowLink>
+              </li>
+            ))}
+          </List>
+        </>
+      )}
+
+      {data.longHeld.length > 0 && (
+        <>
+          <SectionTitle
+            aside={<span className="text-sm text-ink-2">over {LONG_HELD_DAYS} days</span>}
           >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+            Out a long time
+          </SectionTitle>
+          <List>
+            {data.longHeld.map((lot, index) => (
+              <li key={`${lot.accountId}-${index}`}>
+                <RowLink href={`/accounts/${lot.accountId}`}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium">
+                      <Qty qty={lot.qty} /> × {lot.itemName}
+                    </span>
+                    <span className="shrink-0 text-sm text-ink-2">{formatDays(lot.daysHeld)}</span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-ink-2">
+                    {lot.customerName} · {lot.siteName} · since {formatDay(lot.since)}
+                  </p>
+                </RowLink>
+              </li>
+            ))}
+          </List>
+        </>
+      )}
+
+      {(data.negativeStock.length > 0 || data.lowStock.length > 0) && (
+        <>
+          <SectionTitle
+            aside={
+              <Link href="/stock" className="text-sm font-medium text-steel">
+                Stock
+              </Link>
+            }
+          >
+            Stock alerts
+          </SectionTitle>
+          <Card className="divide-y divide-rule">
+            {data.negativeStock.map((row) => (
+              <p key={row.id} className="flex items-baseline justify-between gap-3 px-4 py-3">
+                <span>
+                  {row.name} <Chip tone="red">More out than owned</Chip>
+                </span>
+                <span className="tabular font-medium text-red">{row.qtyAvailable}</span>
+              </p>
+            ))}
+            {data.lowStock.map((row) => (
+              <p key={row.id} className="flex items-baseline justify-between gap-3 px-4 py-3">
+                <span>
+                  {row.name} <Chip tone="amber">Running low</Chip>
+                </span>
+                <span className="tabular font-medium text-amber">{row.qtyAvailable} left</span>
+              </p>
+            ))}
+          </Card>
+        </>
+      )}
+
+      <p className="mt-6 text-xs text-ink-3">
+        Reminders are never sent automatically — every message goes from the yard&apos;s own
+        WhatsApp, after someone has read it.
+      </p>
+    </Screen>
   );
 }

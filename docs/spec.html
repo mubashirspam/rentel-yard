@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yard Ledger — Build Specification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6F7;
+  --card:#FFFFFF;
+  --ink:#15181C;
+  --ink-2:#4A545E;
+  --ink-3:#7C8791;
+  --steel:#2F5169;
+  --steel-soft:#E4EDF3;
+  --rule:#D9DFE4;
+  --amber:#8A5B0B;
+  --amber-soft:#FBF1DC;
+  --green:#2C6046;
+  --green-soft:#E4F0E9;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --cond:'IBM Plex Sans Condensed',var(--sans);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px;display:flex;gap:44px;align-items:flex-start}
+main{flex:1;min-width:0;max-width:840px;padding:0 0 120px}
+
+/* ---------- masthead ---------- */
+.masthead{border-bottom:2px solid var(--ink);padding:56px 0 20px;margin-bottom:44px}
+.masthead .tag{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel)}
+.masthead h1{font-family:var(--cond);font-weight:700;font-size:clamp(38px,6vw,60px);line-height:1.02;margin:14px 0 10px;letter-spacing:-.015em}
+.masthead p{color:var(--ink-2);max-width:60ch;margin:0 0 22px}
+.meta{display:flex;flex-wrap:wrap;gap:0;border-top:1px solid var(--rule);font-family:var(--mono);font-size:11.5px}
+.meta div{padding:9px 22px 9px 0;margin-right:22px;border-right:1px solid var(--rule);color:var(--ink-3)}
+.meta div:last-child{border-right:0}
+.meta b{color:var(--ink);font-weight:500}
+
+/* ---------- nav rail ---------- */
+nav{position:sticky;top:0;width:216px;flex-shrink:0;padding:60px 0 40px;font-family:var(--mono);font-size:11.5px;max-height:100vh;overflow-y:auto}
+nav .navhead{letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:10px}
+nav a{display:block;color:var(--ink-2);text-decoration:none;padding:4px 0 4px 30px;position:relative;line-height:1.45}
+nav a span{position:absolute;left:0;color:var(--ink-3)}
+nav a:hover{color:var(--steel)}
+nav a:hover span{color:var(--steel)}
+
+/* ---------- sections ---------- */
+section{margin-bottom:56px;scroll-margin-top:24px}
+.sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--ink);padding-bottom:8px;margin-bottom:22px}
+.sec-head .num{font-family:var(--mono);font-size:12px;color:var(--steel);font-weight:600;flex-shrink:0}
+.sec-head h2{font-family:var(--cond);font-weight:700;font-size:27px;margin:0;letter-spacing:-.01em}
+h3{font-family:var(--cond);font-size:19px;font-weight:600;margin:32px 0 10px;letter-spacing:-.005em}
+h4{font-family:var(--mono);font-size:12.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--steel);margin:24px 0 8px}
+p{margin:0 0 13px}
+ul,ol{margin:0 0 14px;padding-left:20px}
+li{margin-bottom:5px}
+strong{font-weight:600}
+code{font-family:var(--mono);font-size:.87em;background:var(--steel-soft);padding:1.5px 5px;border-radius:3px;color:#1F3D51}
+a.ref{color:var(--steel)}
+
+/* ---------- code blocks ---------- */
+pre{
+  background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--steel);
+  padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.65;
+  margin:0 0 16px;border-radius:2px;
+}
+pre b{color:var(--steel);font-weight:600}
+pre i{color:var(--ink-3);font-style:normal}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;margin:0 0 18px;font-size:13.5px;background:var(--card)}
+th{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  text-align:left;padding:9px 12px;border-bottom:1.5px solid var(--ink);color:var(--ink-2);font-weight:600;
+}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td code{background:transparent;padding:0;color:var(--steel)}
+.num-col{font-family:var(--mono);text-align:right;white-space:nowrap}
+
+/* ---------- callouts ---------- */
+.note{border:1px solid var(--rule);border-left:3px solid var(--steel);background:var(--card);padding:13px 16px;margin:0 0 16px;font-size:13.8px}
+.warn{border:1px solid #E8D7B0;border-left:3px solid var(--amber);background:var(--amber-soft);padding:13px 16px;margin:0 0 16px;font-size:13.8px}
+.warn .lbl,.note .lbl{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:5px;font-weight:600}
+.warn .lbl{color:var(--amber)}
+.note .lbl{color:var(--steel)}
+.note p:last-child,.warn p:last-child{margin-bottom:0}
+
+/* ---------- milestone cards ---------- */
+.ms{border:1px solid var(--rule);background:var(--card);margin-bottom:12px}
+.ms-top{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--rule);background:#FAFBFC}
+.ms-top .id{font-family:var(--mono);font-size:11px;font-weight:600;color:#fff;background:var(--steel);padding:2px 7px;border-radius:2px}
+.ms-top .t{font-family:var(--cond);font-weight:600;font-size:16px}
+.ms-top .est{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.ms-body{padding:13px 16px}
+.ms-body ul{margin-bottom:0}
+.ms-body .ac{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin:12px 0 5px;font-weight:600}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1.5px 7px;border-radius:2px;letter-spacing:.05em}
+.pill.must{background:var(--amber-soft);color:var(--amber);border:1px solid #E8D7B0}
+.pill.v1{background:var(--green-soft);color:var(--green);border:1px solid #C4DDD0}
+.pill.later{background:#EDF0F2;color:var(--ink-3);border:1px solid var(--rule)}
+
+footer{border-top:2px solid var(--ink);padding:18px 0 60px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+
+@media (max-width:1000px){
+  nav{display:none}
+  .wrap{padding:0 18px}
+  main{max-width:100%}
+}
+@media print{
+  nav{display:none}
+  body{background:#fff;font-size:11pt}
+  section{page-break-inside:avoid}
+  pre{page-break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="navhead">Contents</div>
+  <a href="#s0"><span>00</span>Agent brief</a>
+  <a href="#s1"><span>01</span>Scope</a>
+  <a href="#s2"><span>02</span>Domain model</a>
+  <a href="#s3"><span>03</span>Accrual engine</a>
+  <a href="#s4"><span>04</span>Database schema</a>
+  <a href="#s5"><span>05</span>Auth &amp; roles</a>
+  <a href="#s6"><span>06</span>API contract</a>
+  <a href="#s7"><span>07</span>Offline sync</a>
+  <a href="#s8"><span>08</span>Screens</a>
+  <a href="#s9"><span>09</span>Billing &amp; delivery</a>
+  <a href="#s10"><span>10</span>Reports</a>
+  <a href="#s11"><span>11</span>Settings</a>
+  <a href="#s12"><span>12</span>Infrastructure</a>
+  <a href="#s13"><span>13</span>Milestones</a>
+  <a href="#s14"><span>14</span>Conventions</a>
+</nav>
+
+<main>
+
+<header class="masthead">
+  <div class="tag">Build Specification · v1.0</div>
+  <h1>Yard Ledger</h1>
+  <p>Rental management for a construction equipment yard — jacks, spans, sheets, cup-lock. An append-only movement ledger with day-wise rent accrual, offline-capable admin surface, and a token-linked customer portal.</p>
+  <div class="meta">
+    <div>Stack <b>Next.js 15 · Neon · Drizzle · Better Auth</b></div>
+    <div>Client <b>PWA, offline-first</b></div>
+    <div>Native app <b>Not in scope</b></div>
+    <div>Region <b>India · INR · Asia/Kolkata</b></div>
+  </div>
+</header>
+
+<!-- ============ 00 ============ -->
+<section id="s0">
+  <div class="sec-head"><span class="num">00</span><h2>Brief for the coding agent</h2></div>
+
+  <p>This document is the single source of truth. Build strictly to it. Where it is silent, choose the simplest option that does not contradict anything written here, and record the choice in <code>/docs/decisions.md</code>.</p>
+
+  <h4>Non-negotiable rules</h4>
+  <ol>
+    <li><strong>The <code>movements</code> table is append-only.</strong> Never <code>UPDATE</code> or <code>DELETE</code> a movement row. Corrections are reversing entries. This single rule is what makes offline sync, auditing, and dispute resolution work.</li>
+    <li><strong>Never store a computed balance or stock count as a mutable column.</strong> Availability and dues are always derived by replaying events. Cache in a materialised view if needed, never in a hand-maintained integer.</li>
+    <li><strong>All money is <code>bigint</code> paise.</strong> No floats anywhere, including in JSON payloads. Format to rupees only at the render layer.</li>
+    <li><strong>All dates for rent purposes are <code>date</code>, not <code>timestamp</code>.</strong> Rent is counted in whole days in Asia/Kolkata. Timestamps are for audit only.</li>
+    <li><strong>Write the accrual engine first</strong> (§03), as a pure function with no I/O, and make every test vector in §03.5 pass before building a single screen.</li>
+    <li><strong>Every table carries <code>org_id</code>.</strong> The product ships single-tenant but must not require a migration to become multi-tenant.</li>
+  </ol>
+
+  <div class="note">
+    <span class="lbl">Build order</span>
+    <p>Work milestone by milestone through §13. Do not start a milestone until the previous one's acceptance criteria pass. Stop and ask before deviating from the schema in §04 or the sync protocol in §07.</p>
+  </div>
+</section>
+
+<!-- ============ 01 ============ -->
+<section id="s1">
+  <div class="sec-head"><span class="num">01</span><h2>Scope</h2></div>
+
+  <h3>What the business does</h3>
+  <p>A yard owns a fixed quantity of each equipment type. Contractors take equipment to a site, keep it for weeks or months, return it in parts, and pay periodically. Rent accrues per item per day held. Items get lost or damaged. A customer's relationship with the yard is a running account, not a series of discrete orders.</p>
+
+  <h3>In scope — v1</h3>
+  <table>
+    <thead><tr><th style="width:34%">Capability</th><th>Detail</th></tr></thead>
+    <tbody>
+      <tr><td>Customer register</td><td>Name, mobile (unique), address, ID proof photo, credit notes</td></tr>
+      <tr><td>Item master</td><td>Name, unit, rate per day, replacement rate, quantity owned</td></tr>
+      <tr><td>Accounts</td><td>One per customer per site; holds all movements for that site</td></tr>
+      <tr><td>Issue / return</td><td>Multi-item, back-dated, partial returns, add-ons to open accounts</td></tr>
+      <tr><td>Damage &amp; loss</td><td>Return marked damaged or lost, charged at replacement rate</td></tr>
+      <tr><td>Live stock</td><td>Owned, out, available, per item, derived from the ledger</td></tr>
+      <tr><td>Bills</td><td>Immutable snapshot of rent + damages + charges − payments for a period</td></tr>
+      <tr><td>Payments</td><td>Cash / UPI / bank / cheque, with reference, against an account</td></tr>
+      <tr><td>Customer portal</td><td>Read-only, opened by a signed WhatsApp link, no password</td></tr>
+      <tr><td>Offline admin</td><td>Full issue/return/payment entry with no network; queued and synced</td></tr>
+      <tr><td>Reports</td><td>Ageing, utilisation, item revenue, outstanding, day book</td></tr>
+      <tr><td>Roles</td><td>super_admin, admin, staff, customer</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Explicitly out of scope</h3>
+  <ul>
+    <li>Flutter or any native app. The PWA is the mobile app; it installs to the home screen and works offline.</li>
+    <li>Online payment collection. Payments are recorded, not processed. No gateway in v1.</li>
+    <li>SMS or OTP login. Customer access is by signed link (§05.4).</li>
+    <li>GST filing, e-way bills, accounting exports. Bills are proforma. Revisit after v1.</li>
+    <li>Transport / vehicle dispatch management.</li>
+  </ul>
+
+  <div class="warn">
+    <span class="lbl">Design constraint</span>
+    <p>The primary admin user is standing in a dusty yard, on a mid-range Android phone, one-handed, possibly with no signal. Every admin screen must be usable at 360&nbsp;px wide with touch targets of at least 44&nbsp;px, and must never block on a network call.</p>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section id="s2">
+  <div class="sec-head"><span class="num">02</span><h2>Domain model</h2></div>
+
+  <h3>The central idea</h3>
+  <p>Do not model this as orders with statuses. Model it as a ledger of movement events. Everything the business asks for is then a derivation rather than a feature:</p>
+
+  <table>
+    <thead><tr><th style="width:38%">Business question</th><th>Derivation</th></tr></thead>
+    <tbody>
+      <tr><td>How many jacks are available?</td><td><code>owned − Σ(ISSUE.qty) + Σ(RETURN.qty)</code> across all open accounts</td></tr>
+      <tr><td>What does this customer owe?</td><td>Replay their movements through the accrual engine, subtract payments</td></tr>
+      <tr><td>Add items to an existing unreturned order</td><td>Another <code>ISSUE</code> on the same account. No special case.</td></tr>
+      <tr><td>Partial return</td><td><code>RETURN</code> with qty less than outstanding. No special case.</td></tr>
+      <tr><td>Is the order closed?</td><td>Outstanding qty is zero for every item on the account</td></tr>
+      <tr><td>What changed and who did it?</td><td>The ledger is the audit log. Nothing else needed.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Entities</h3>
+  <pre><b>Customer</b>  identified by mobile number. May hold several accounts.
+   └─ <b>Account</b>  one running khata, usually per construction site.
+       ├─ <b>Movement</b>  ISSUE or RETURN of one item, one quantity, one date. Append-only.
+       ├─ <b>Payment</b>   money received against the account.
+       ├─ <b>Adjustment</b> discount, transport charge, round-off, waiver.
+       └─ <b>Bill</b>      frozen snapshot of dues for a period. Immutable once issued.
+
+<b>Item</b>  equipment type owned by the yard. Referenced by movements.
+<b>User</b>  a staff login. Distinct from Customer — customers do not log in.</pre>
+
+  <h3>Invariants</h3>
+  <ul>
+    <li>An account's outstanding qty for any item must never go below zero. The server rejects a <code>RETURN</code> that would breach this.</li>
+    <li>An account cannot be closed while any item has outstanding qty above zero.</li>
+    <li><code>rate_snapshot</code> is copied onto every <code>ISSUE</code> row at creation. Changing an item's master rate must never alter historical rent.</li>
+    <li>A bill, once issued, is immutable. Corrections are a credit adjustment plus a new bill.</li>
+    <li>A movement's <code>moved_at</code> date may be back-dated but never set in the future.</li>
+  </ul>
+
+  <h3>Movement types</h3>
+  <table>
+    <thead><tr><th>Type</th><th>Sign</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>ISSUE</code></td><td>+qty</td><td>Equipment leaves the yard. Starts accrual.</td></tr>
+      <tr><td><code>RETURN</code></td><td>−qty</td><td>Equipment comes back in usable condition. Stops accrual.</td></tr>
+      <tr><td><code>RETURN_DAMAGED</code></td><td>−qty</td><td>Comes back unusable. Stops accrual, charges repair or replacement.</td></tr>
+      <tr><td><code>LOST</code></td><td>−qty</td><td>Never coming back. Stops accrual, charges replacement rate, reduces effective owned stock.</td></tr>
+      <tr><td><code>REVERSAL</code></td><td>∓qty</td><td>Cancels an earlier movement. Carries <code>reverses_id</code>. Admin+ only.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 03 ============ -->
+<section id="s3">
+  <div class="sec-head"><span class="num">03</span><h2>Rent accrual engine</h2></div>
+
+  <p>This is the heart of the product and the source of every customer dispute. Build it as a pure, dependency-free module at <code>/lib/accrual/</code> with exhaustive unit tests. It must never import a database client.</p>
+
+  <h3>03.1 Billing configuration</h3>
+  <p>Stored per org in <code>settings</code>, passed into the engine as an argument — never read from a global.</p>
+  <table>
+    <thead><tr><th style="width:26%">Key</th><th style="width:16%">Default</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>day_count_mode</code></td><td><code>inclusive_start</code></td><td><code>inclusive_start</code>: issue day billed, return day not. <code>inclusive_both</code>: both billed. Yard convention — confirm with owner before launch.</td></tr>
+      <tr><td><code>minimum_days</code></td><td><code>15</code></td><td>Every issued unit is billed for at least this many days even if returned sooner.</td></tr>
+      <tr><td><code>minimum_days_applies</code></td><td><code>per_issue_lot</code></td><td>Minimum is evaluated per ISSUE lot, not per account.</td></tr>
+      <tr><td><code>rounding</code></td><td><code>nearest_rupee</code></td><td>Applied once to the final line total, never per day.</td></tr>
+      <tr><td><code>damage_charge_mode</code></td><td><code>replacement_rate</code></td><td>Alternative: <code>manual</code> — admin types the amount per movement.</td></tr>
+      <tr><td><code>accrual_stops_on_bill</code></td><td><code>false</code></td><td>Rent keeps accruing after billing until items physically return.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>03.2 Lot-based algorithm</h3>
+  <p>Naive "outstanding × days" fails the moment a minimum-days rule exists, because you cannot tell which units are being returned. Use <strong>FIFO lot consumption</strong>: each ISSUE creates a lot; each RETURN consumes from the oldest open lot first.</p>
+
+  <pre><i>// Pure. No I/O. All dates are plain YYYY-MM-DD strings in Asia/Kolkata.</i>
+
+<b>type</b> Movement = {
+  id: string; itemId: string; type: MovementType;
+  qty: number; movedAt: string; rateSnapshot: number; <i>// paise/unit/day</i>
+  replacementSnapshot: number; manualCharge?: number;
+}
+
+<b>type</b> AccrualResult = {
+  lines: LineItem[];        <i>// one per lot, for the bill</i>
+  rentTotal: number;        <i>// paise</i>
+  damageTotal: number;      <i>// paise</i>
+  outstanding: Record&lt;itemId, number&gt;;
+  openLots: Lot[];          <i>// still out, for the ageing report</i>
+}
+
+<b>function</b> accrue(movements, config, asOf) {
+  <i>// 1. Drop movements cancelled by a REVERSAL.</i>
+  <i>// 2. Sort by (movedAt asc, createdAt asc). Stable — same input, same output.</i>
+  <i>// 3. Group by itemId. Lots never cross item boundaries.</i>
+  <i>// 4. Per item, walk the sorted movements:</i>
+  <i>//      ISSUE  -&gt; push lot { qty, from: movedAt, rate, remaining: qty }</i>
+  <i>//      RETURN -&gt; consume qty from oldest open lots, FIFO.</i>
+  <i>//                For each consumed slice, close it:</i>
+  <i>//                  days = dayCount(lot.from, movedAt, config)</i>
+  <i>//                  days = max(days, config.minimum_days)</i>
+  <i>//                  rent += slice * days * lot.rate</i>
+  <i>//      RETURN_DAMAGED -&gt; same as RETURN for rent,</i>
+  <i>//                plus damage += slice * (manualCharge ?? replacementSnapshot)</i>
+  <i>//      LOST   -&gt; same as RETURN_DAMAGED, and flag lot as lost</i>
+  <i>// 5. Any lot still open at the end accrues up to `asOf`:</i>
+  <i>//      days = max(dayCount(lot.from, asOf, config), config.minimum_days)</i>
+  <i>// 6. Round each line total per config. Sum.</i>
+}
+
+<b>function</b> dayCount(from, to, config) {
+  <b>const</b> raw = differenceInCalendarDays(to, from);
+  <b>return</b> config.day_count_mode === 'inclusive_both' ? raw + 1 : Math.max(raw, 1);
+}</pre>
+
+  <div class="warn">
+    <span class="lbl">Do not skip</span>
+    <p>FIFO lot consumption is mandatory. Without it, a customer who takes 100 jacks in January and 100 more in June, then returns 100, gets billed incorrectly — and the error compounds silently for months. There is no shortcut here.</p>
+  </div>
+
+  <h3>03.3 Rate changes mid-rental</h3>
+  <p>The rate that applies is the one frozen on the ISSUE lot. Editing <code>items.rate_per_day</code> affects only future issues. If the yard genuinely renegotiates an ongoing rental, the admin records a <code>REVERSAL</code> of the original issue and a fresh <code>ISSUE</code> at the new rate on the changeover date. Do not build a rate-history table in v1.</p>
+
+  <h3>03.4 Account balance</h3>
+  <pre>balance = rentTotal + damageTotal + Σ(adjustments where type=charge)
+          − Σ(payments) − Σ(adjustments where type=credit)
+
+status = balance &gt; 0  <b>?</b> 'due'
+       : balance &lt; 0  <b>?</b> 'advance'
+       :                'settled'
+
+<i>// Payment status shown to customer, per bill:</i>
+<i>//   paid       — allocated &gt;= grand_total</i>
+<i>//   partial    — 0 &lt; allocated &lt; grand_total</i>
+<i>//   pending    — allocated == 0, within due date</i>
+<i>//   overdue    — allocated &lt; grand_total, past due date</i></pre>
+  <p>Payments are allocated to bills oldest-first automatically. Store the allocation in <code>payment_allocations</code> so a partially-paid bill can be shown accurately.</p>
+
+  <h3>03.5 Required test vectors</h3>
+  <p>Encode these verbatim as unit tests. Config: <code>minimum_days = 15</code>, <code>day_count_mode = inclusive_start</code>, jack rate ₹2.00/day, replacement ₹450.</p>
+
+  <table>
+    <thead><tr><th style="width:5%">#</th><th style="width:47%">Scenario</th><th>Expected</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Issue 10 on 01-Jan. Return 10 on 31-Jan.</td><td>30 days × 10 × ₹2 = <b>₹600</b>, outstanding 0</td></tr>
+      <tr><td>2</td><td>Issue 10 on 01-Jan. Return 10 on 06-Jan.</td><td>Minimum applies: 15 × 10 × ₹2 = <b>₹300</b></td></tr>
+      <tr><td>3</td><td>Issue 10 on 01-Jan. Return 4 on 21-Jan. Nothing else. As of 31-Jan.</td><td>4×20×2 = ₹160, plus 6×30×2 = ₹360 → <b>₹520</b>, outstanding 6</td></tr>
+      <tr><td>4</td><td>Issue 10 on 01-Jan. Issue 10 more on 11-Jan. Return 10 on 21-Jan.</td><td>FIFO: first lot closes at 20 days = ₹400; second lot open, as of 31-Jan 20 days = ₹400 → <b>₹800</b>, outstanding 10</td></tr>
+      <tr><td>5</td><td>Issue 10 on 01-Jan. Return 5 damaged on 11-Jan.</td><td>Rent min 15 days on the 5 = ₹150; damage 5 × ₹450 = ₹2,250; remaining 5 still accruing</td></tr>
+      <tr><td>6</td><td>Issue 10 on 01-Jan. Return 12 on 11-Jan.</td><td><b>Rejected.</b> Error <code>RETURN_EXCEEDS_OUTSTANDING</code>, outstanding unchanged</td></tr>
+      <tr><td>7</td><td>Issue 10 on 01-Jan. Reverse that issue on 03-Jan.</td><td>Rent <b>₹0</b>, outstanding 0, stock restored</td></tr>
+      <tr><td>8</td><td>Issue 10 on 01-Jan at ₹2. Master rate changed to ₹3 on 10-Jan. Return 10 on 31-Jan.</td><td><b>₹600</b>, not ₹900 — snapshot wins</td></tr>
+      <tr><td>9</td><td>Issue 10 jacks and 200 sheets on 01-Jan. Return 200 sheets on 11-Jan.</td><td>Lots are per-item; the sheet return must not touch the jack lot</td></tr>
+      <tr><td>10</td><td>Issue 10 on 01-Jan. Return 3 on 11-Jan, 3 on 21-Jan, 4 on 31-Jan.</td><td>3×15(min) + 3×20 + 4×30 = 90+60+120 = 270 unit-days × ₹2 = <b>₹540</b>, outstanding 0, account closable</td></tr>
+      <tr><td>11</td><td>Issue on 01-Jan, back-dated entry for 25-Dec added later.</td><td>Sorting is by <code>movedAt</code>, so the Dec lot is consumed first by any return</td></tr>
+      <tr><td>12</td><td>Empty movement list.</td><td>All totals 0, no crash, no division by zero</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 04 ============ -->
+<section id="s4">
+  <div class="sec-head"><span class="num">04</span><h2>Database schema</h2></div>
+
+  <p>Neon Postgres, accessed through Drizzle ORM. Use the serverless HTTP driver (<code>@neondatabase/serverless</code>) for request handlers and a pooled connection for migrations. Authoritative DDL below; write the Drizzle schema to match exactly.</p>
+
+  <pre><b>create extension if not exists</b> "pgcrypto";
+
+<i>-- tenancy ------------------------------------------------------------</i>
+<b>create table</b> orgs (
+  id            uuid primary key default gen_random_uuid(),
+  name          text not null,
+  created_at    timestamptz not null default now()
+);
+
+<b>create table</b> settings (
+  org_id        uuid primary key references orgs(id),
+  billing       jsonb not null,   <i>-- the §03.1 config object</i>
+  invoice_prefix text not null default 'INV',
+  next_invoice_no int not null default 1,
+  terms_text    text,
+  updated_at    timestamptz not null default now()
+);
+
+<i>-- people -------------------------------------------------------------</i>
+<b>create table</b> users (            <i>-- staff logins; managed by Better Auth</i>
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  email         text unique not null,
+  name          text not null,
+  role          text not null check (role in ('super_admin','admin','staff')),
+  is_active     boolean not null default true,
+  created_at    timestamptz not null default now()
+);
+
+<b>create table</b> customers (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  name          text not null,
+  mobile        text not null,           <i>-- E.164, e.g. +919XXXXXXXXX</i>
+  alt_mobile    text,
+  address       text,
+  id_proof_url  text,
+  credit_limit  bigint not null default 0,   <i>-- paise; 0 = no limit</i>
+  notes         text,
+  is_blocked    boolean not null default false,
+  created_at    timestamptz not null default now(),
+  <b>unique</b> (org_id, mobile)
+);
+
+<i>-- catalogue ----------------------------------------------------------</i>
+<b>create table</b> items (
+  id               uuid primary key default gen_random_uuid(),
+  org_id           uuid not null references orgs(id),
+  name             text not null,
+  code             text,                     <i>-- short code for fast entry</i>
+  unit             text not null default 'nos',
+  rate_per_day     bigint not null,          <i>-- paise per unit per day</i>
+  replacement_rate bigint not null default 0,
+  qty_owned        int not null default 0,
+  is_active        boolean not null default true,
+  sort_order       int not null default 0,
+  <b>unique</b> (org_id, code)
+);
+
+<i>-- the ledger ---------------------------------------------------------</i>
+<b>create table</b> accounts (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  customer_id   uuid not null references customers(id),
+  site_name     text not null,
+  site_address  text,
+  status        text not null default 'open' check (status in ('open','closed')),
+  opened_on     date not null,
+  closed_on     date,
+  created_by    uuid references users(id),
+  created_at    timestamptz not null default now()
+);
+
+<b>create table</b> movements (
+  id                uuid primary key default gen_random_uuid(),
+  org_id            uuid not null references orgs(id),
+  account_id        uuid not null references accounts(id),
+  item_id           uuid not null references items(id),
+  type              text not null check (type in
+                      ('ISSUE','RETURN','RETURN_DAMAGED','LOST','REVERSAL')),
+  qty               int not null check (qty &gt; 0),
+  rate_snapshot     bigint not null,
+  replacement_snapshot bigint not null default 0,
+  manual_charge     bigint,
+  moved_at          date not null,
+  reverses_id       uuid references movements(id),
+  gate_pass_no      text,
+  photo_url         text,
+  signature_url     text,
+  remarks           text,
+  client_uuid       text not null,   <i>-- idempotency key from the device</i>
+  device_id         text,
+  created_by        uuid references users(id),
+  created_at        timestamptz not null default now(),
+  <b>unique</b> (org_id, client_uuid)
+);
+<b>create index</b> on movements (account_id, item_id, moved_at);
+<b>create index</b> on movements (org_id, created_at);
+
+<i>-- money --------------------------------------------------------------</i>
+<b>create table</b> payments (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  account_id    uuid not null references accounts(id),
+  amount        bigint not null check (amount &gt; 0),
+  method        text not null check (method in ('cash','upi','bank','cheque','other')),
+  reference     text,
+  paid_on       date not null,
+  remarks       text,
+  client_uuid   text not null,
+  created_by    uuid references users(id),
+  created_at    timestamptz not null default now(),
+  <b>unique</b> (org_id, client_uuid)
+);
+
+<b>create table</b> adjustments (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  account_id    uuid not null references accounts(id),
+  kind          text not null check (kind in ('charge','credit')),
+  amount        bigint not null check (amount &gt; 0),
+  reason        text not null,
+  applied_on    date not null,
+  client_uuid   text not null,
+  created_by    uuid references users(id),
+  created_at    timestamptz not null default now(),
+  <b>unique</b> (org_id, client_uuid)
+);
+
+<b>create table</b> bills (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  account_id    uuid not null references accounts(id),
+  invoice_no    text not null,
+  period_from   date not null,
+  period_to     date not null,
+  rent_total    bigint not null,
+  damage_total  bigint not null default 0,
+  charges_total bigint not null default 0,
+  credits_total bigint not null default 0,
+  grand_total   bigint not null,
+  lines         jsonb not null,     <i>-- frozen AccrualResult.lines</i>
+  due_on        date,
+  issued_by     uuid references users(id),
+  issued_at     timestamptz not null default now(),
+  <b>unique</b> (org_id, invoice_no)
+);
+
+<b>create table</b> payment_allocations (
+  payment_id    uuid not null references payments(id),
+  bill_id       uuid not null references bills(id),
+  amount        bigint not null check (amount &gt; 0),
+  <b>primary key</b> (payment_id, bill_id)
+);
+
+<i>-- portal access ------------------------------------------------------</i>
+<b>create table</b> portal_tokens (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  customer_id   uuid not null references customers(id),
+  token_hash    text not null unique,   <i>-- sha256 of the raw token</i>
+  expires_at    timestamptz not null,
+  revoked_at    timestamptz,
+  last_used_at  timestamptz,
+  created_by    uuid references users(id),
+  created_at    timestamptz not null default now()
+);
+
+<i>-- sync bookkeeping ---------------------------------------------------</i>
+<b>create table</b> sync_rejections (
+  id            uuid primary key default gen_random_uuid(),
+  org_id        uuid not null references orgs(id),
+  client_uuid   text not null,
+  device_id     text,
+  payload       jsonb not null,
+  reason        text not null,
+  resolved_at   timestamptz,
+  created_at    timestamptz not null default now()
+);</pre>
+
+  <h4>Derived views</h4>
+  <pre><b>create view</b> v_item_stock <b>as</b>
+<b>select</b> i.id, i.org_id, i.name, i.qty_owned,
+  coalesce(sum(<b>case</b> m.type
+    <b>when</b> 'ISSUE' <b>then</b> m.qty
+    <b>when</b> 'RETURN' <b>then</b> -m.qty
+    <b>when</b> 'RETURN_DAMAGED' <b>then</b> -m.qty
+    <b>when</b> 'LOST' <b>then</b> -m.qty
+    <b>else</b> 0 <b>end</b>), 0) <b>as</b> qty_out,
+  i.qty_owned - coalesce(sum(...), 0) <b>as</b> qty_available
+<b>from</b> items i
+<b>left join</b> movements m <b>on</b> m.item_id = i.id
+  <b>and not exists</b> (<b>select</b> 1 <b>from</b> movements r <b>where</b> r.reverses_id = m.id)
+<b>group by</b> i.id;</pre>
+  <p>Account balances are <em>not</em> a view — they require the FIFO engine, so compute them in application code and cache per account in Redis-free memory with a short TTL, or recompute on read. At this data volume, recomputing is fine.</p>
+</section>
+
+<!-- ============ 05 ============ -->
+<section id="s5">
+  <div class="sec-head"><span class="num">05</span><h2>Authentication &amp; authorisation</h2></div>
+
+  <h3>05.1 Staff auth</h3>
+  <p>Better Auth with the Drizzle adapter against Neon. Email + password, sessions in a database table, HTTP-only cookies. No social login. No self-signup — a <code>super_admin</code> creates users and assigns roles.</p>
+
+  <h3>05.2 Role matrix</h3>
+  <table>
+    <thead><tr><th>Capability</th><th>super_admin</th><th>admin</th><th>staff</th><th>customer</th></tr></thead>
+    <tbody>
+      <tr><td>Record issue / return</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+      <tr><td>Create customer, open account</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+      <tr><td>See rates, rent, balances</td><td>✓</td><td>✓</td><td>—</td><td>own only</td></tr>
+      <tr><td>Record payment</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td>Issue bill</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td>Adjustments, discounts, waivers</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td>Reverse a movement</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td>Edit item master &amp; rates</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Manage users &amp; roles</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Billing settings</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+      <tr><td>Profit &amp; revenue reports</td><td>✓</td><td>✓</td><td>—</td><td>—</td></tr>
+      <tr><td>Issue portal link</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn">
+    <span class="lbl">No RLS — enforce in one place</span>
+    <p>Neon has no Supabase-style row policies, so authorisation lives in the application. Do <strong>not</strong> scatter <code>if (role === 'admin')</code> through route handlers. Build <code>/lib/auth/guard.ts</code> exporting <code>requireCapability(session, capability)</code> driven by a single capability map, and make every data-access function take a session. A staff-role response must never contain a rate or balance field — strip at the serialisation layer, not with CSS.</p>
+  </div>
+
+  <h3>05.3 Guard shape</h3>
+  <pre><i>// /lib/auth/capabilities.ts — the only place roles are defined</i>
+<b>export const</b> CAPS = {
+  'movement.create':  ['super_admin','admin','staff'],
+  'movement.reverse': ['super_admin','admin'],
+  'money.view':       ['super_admin','admin'],
+  'payment.create':   ['super_admin','admin'],
+  'bill.issue':       ['super_admin','admin'],
+  'item.manage':      ['super_admin'],
+  'user.manage':      ['super_admin'],
+} <b>as const</b>;
+
+<i>// Every route handler begins with exactly this shape:</i>
+<b>const</b> session = <b>await</b> requireSession();
+requireCapability(session, 'payment.create');   <i>// throws 403</i></pre>
+
+  <h3>05.4 Customer portal access</h3>
+  <p>Customers do not have passwords. Access is by an unguessable signed link that the admin shares over WhatsApp.</p>
+  <ol>
+    <li>Admin taps <strong>Share statement</strong> on a customer.</li>
+    <li>Server generates 32 random bytes, stores the SHA-256 hash in <code>portal_tokens</code> with a 90-day expiry, returns the raw token once.</li>
+    <li>Client opens <code>https://wa.me/&lt;mobile&gt;?text=&lt;encoded message with URL&gt;</code>.</li>
+    <li>Customer opens <code>/s/&lt;token&gt;</code> — read-only view of their accounts, outstanding items, bills, payments, and current dues. Landing sets a scoped cookie so refreshes work.</li>
+    <li>Admin can revoke any token from the customer page.</li>
+  </ol>
+  <p>Rate-limit <code>/s/[token]</code> to 20 requests/minute per IP. Log <code>last_used_at</code>. If the same customer needs several links, reuse the active token rather than minting new ones.</p>
+
+  <div class="note">
+    <span class="lbl">Why not OTP</span>
+    <p>Phone OTP costs money per message and needs a DLT-registered sender in India. The signed link costs nothing, works on any phone, and matches how these customers already communicate. Keep the <code>portal_tokens</code> table so that adding OTP later is an additive change, not a rewrite.</p>
+  </div>
+</section>
+
+<!-- ============ 06 ============ -->
+<section id="s6">
+  <div class="sec-head"><span class="num">06</span><h2>API contract</h2></div>
+
+  <p>Next.js Route Handlers under <code>/app/api</code>. JSON in, JSON out. Validate every body with Zod; the Zod schemas are shared with the client and with the offline queue validator.</p>
+
+  <table>
+    <thead><tr><th style="width:8%">Verb</th><th style="width:34%">Path</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/bootstrap</code></td><td>Everything the offline client caches on first load: items, customers, open accounts, settings, server time, sync cursor</td></tr>
+      <tr><td>POST</td><td><code>/api/sync/push</code></td><td>Submit queued mutations. See §07.</td></tr>
+      <tr><td>GET</td><td><code>/api/sync/pull?cursor=</code></td><td>Changed rows since cursor</td></tr>
+      <tr><td>GET</td><td><code>/api/customers?q=</code></td><td>Search by name or mobile</td></tr>
+      <tr><td>POST</td><td><code>/api/customers</code></td><td>Create</td></tr>
+      <tr><td>GET</td><td><code>/api/customers/:id</code></td><td>Profile, accounts, total outstanding</td></tr>
+      <tr><td>POST</td><td><code>/api/customers/:id/portal-link</code></td><td>Mint token, return raw URL + prefilled wa.me link</td></tr>
+      <tr><td>GET</td><td><code>/api/accounts/:id</code></td><td>Movements, outstanding per item, live accrual, bills, payments</td></tr>
+      <tr><td>POST</td><td><code>/api/accounts</code></td><td>Open account</td></tr>
+      <tr><td>POST</td><td><code>/api/accounts/:id/close</code></td><td>Rejects unless all outstanding is zero</td></tr>
+      <tr><td>POST</td><td><code>/api/movements</code></td><td>Batch: one gate pass, many item lines, one <code>client_uuid</code> per line</td></tr>
+      <tr><td>POST</td><td><code>/api/movements/:id/reverse</code></td><td>Creates a REVERSAL. Requires reason.</td></tr>
+      <tr><td>POST</td><td><code>/api/payments</code></td><td>Record payment, auto-allocate oldest-first</td></tr>
+      <tr><td>POST</td><td><code>/api/bills</code></td><td>Generate bill for account + period. Freezes lines.</td></tr>
+      <tr><td>GET</td><td><code>/api/bills/:id/pdf</code></td><td>Server-rendered PDF</td></tr>
+      <tr><td>GET</td><td><code>/api/items</code> · <code>/api/stock</code></td><td>Master and live availability</td></tr>
+      <tr><td>GET</td><td><code>/api/reports/:kind</code></td><td>ageing · utilisation · revenue · outstanding · daybook</td></tr>
+      <tr><td>POST</td><td><code>/api/uploads/sign</code></td><td>Presigned R2 PUT URL for photos and signatures</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Error envelope</h4>
+  <pre>{ "error": { "code": "RETURN_EXCEEDS_OUTSTANDING",
+              "message": "Only 6 jacks are out on this account.",
+              "field": "lines[2].qty",
+              "context": { "outstanding": 6, "attempted": 12 } } }</pre>
+  <p>Codes are stable identifiers the offline client matches on. Messages are plain, specific, and safe to show a yard worker. Never return a stack trace or a raw Postgres error.</p>
+</section>
+
+<!-- ============ 07 ============ -->
+<section id="s7">
+  <div class="sec-head"><span class="num">07</span><h2>Offline-first architecture</h2></div>
+
+  <p>The append-only ledger is what makes this tractable. Two devices offline never write the same cell, because nobody writes <code>stock = 42</code> — they write <code>issued 10</code>. Merging is a union of rows.</p>
+
+  <h3>07.1 Client storage</h3>
+  <table>
+    <thead><tr><th style="width:26%">Layer</th><th style="width:24%">Tech</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td>App shell</td><td>Service worker (Workbox)</td><td>Precached routes, JS, CSS, fonts. Cache-first.</td></tr>
+      <tr><td>Read mirror</td><td>Dexie / IndexedDB</td><td>items, customers, open accounts, movements for open accounts, settings</td></tr>
+      <tr><td>Write queue</td><td>Dexie <code>outbox</code> table</td><td>Pending mutations with client-generated UUIDs</td></tr>
+      <tr><td>Binary queue</td><td>Dexie blob store</td><td>Photos and signatures awaiting upload</td></tr>
+    </tbody>
+  </table>
+
+  <h3>07.2 Write path</h3>
+  <pre>1. User submits an issue/return/payment form.
+2. Generate client_uuid = crypto.randomUUID() per line.
+3. Validate locally with the shared Zod schema + local outstanding check.
+4. Write to Dexie: local tables updated optimistically, row flagged `pending`.
+5. Append to `outbox`. UI returns immediately — <b>never await the network</b>.
+6. Background sync (or a 30s timer, or an `online` event) drains the outbox.
+7. Server upserts with ON CONFLICT (org_id, client_uuid) DO NOTHING.
+   Retries are therefore free and idempotent.
+8. On 2xx: mark rows `synced`, clear the pending badge.
+   On 4xx business rejection: move to `needs_attention`, surface in the UI.
+   On 5xx / network error: leave queued, exponential backoff, retry forever.</pre>
+
+  <h3>07.3 Read path</h3>
+  <p>Pull by cursor: <code>GET /api/sync/pull?cursor=&lt;last server_seq&gt;</code> returns rows with a higher sequence, capped at 500 per page. Use a monotonic <code>server_seq bigint</code> column (a sequence, not a timestamp — clocks are unreliable) on every syncable table.</p>
+
+  <h3>07.4 Conflicts and what to do about them</h3>
+  <table>
+    <thead><tr><th style="width:30%">Situation</th><th>Resolution</th></tr></thead>
+    <tbody>
+      <tr><td>Two devices issue the same item offline; total exceeds owned stock</td><td><strong>Accept both.</strong> The equipment physically left the yard; the ledger must reflect reality. Raise a "negative availability" alert on the stock screen for an admin to reconcile.</td></tr>
+      <tr><td>Return recorded offline exceeds outstanding at merge time</td><td><strong>Reject that line only.</strong> Other lines in the batch still commit. Write to <code>sync_rejections</code>, show it in the device's "Needs attention" queue with the reason and the option to correct the qty and resubmit.</td></tr>
+      <tr><td>Same movement submitted twice (retry, double-tap)</td><td>Silently absorbed by the <code>client_uuid</code> unique constraint.</td></tr>
+      <tr><td>Customer created offline on two devices with the same mobile</td><td>Server merges on <code>(org_id, mobile)</code>, returns the canonical id, client rewrites its local foreign keys.</td></tr>
+      <tr><td>Device clock is wrong</td><td>Server records its own <code>created_at</code>. <code>moved_at</code> is user-entered and defaults to a date the user confirms on screen, so a bad clock is visible and correctable.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>07.5 Honest offline UI</h3>
+  <ul>
+    <li>Persistent status chip in the header: <code>Online</code> · <code>Offline — 4 pending</code> · <code>Syncing…</code> · <code>2 need attention</code>.</li>
+    <li>Stock availability while offline shows the sync age: "Available 214 · as of 2h ago". Never present a stale number as authoritative.</li>
+    <li>Money screens (bills, balances) are read-only offline and clearly stamped with the sync time. Payments can still be <em>recorded</em> offline.</li>
+    <li>Rows not yet synced carry a small pending marker. Do not hide them.</li>
+  </ul>
+
+  <div class="note">
+    <span class="lbl">Scope discipline</span>
+    <p>Offline is required only for: record issue, record return, create customer, open account, record payment, and view open accounts. Everything else — reports, bill generation, settings, user management — may require a connection and should say so plainly rather than failing strangely.</p>
+  </div>
+</section>
+
+<!-- ============ 08 ============ -->
+<section id="s8">
+  <div class="sec-head"><span class="num">08</span><h2>Screens</h2></div>
+
+  <h3>08.1 Route map</h3>
+  <pre>/login
+/                       Dashboard — out today, due today, overdue, low stock
+/customers              Search, list with outstanding
+/customers/new
+/customers/[id]         Profile · accounts · total due · Share statement
+/accounts/[id]          <b>The main working screen</b>
+/issue                  Fast issue — customer → items → qty → confirm
+/return                 Fast return — account → outstanding list → qty in
+/stock                  Item-wise owned / out / available / alerts
+/items                  Master (super_admin)
+/bills/[id]             Bill view + PDF + WhatsApp share
+/payments/new
+/reports/[kind]
+/settings               Billing rules, invoice format, terms (super_admin)
+/users                  Staff &amp; roles (super_admin)
+/sync                   Pending queue, rejections, force sync
+/s/[token]              Customer portal (public, read-only)</pre>
+
+  <h3>08.2 Account screen — the one that matters</h3>
+  <p>Everything an admin needs while standing in front of a contractor, on one scrollable page:</p>
+  <ul>
+    <li><strong>Header</strong> — customer name, mobile (tap to call, tap to WhatsApp), site name, days open, status.</li>
+    <li><strong>Balance card</strong> — rent accrued to date, damages, charges, paid, <strong>net due</strong> in large type. Hidden for the staff role.</li>
+    <li><strong>Currently out</strong> — item, qty out, oldest issue date, days held, accruing per day. Tap a row to return that item.</li>
+    <li><strong>Actions</strong> — Issue more · Record return · Record payment · Generate bill · Share statement.</li>
+    <li><strong>Ledger</strong> — reverse-chronological movements, payments, bills, and adjustments interleaved. Each row shows who entered it and when. Long-press a movement to reverse it (admin+).</li>
+  </ul>
+
+  <h3>08.3 Issue flow</h3>
+  <pre>Customer  →  search or create inline (name + mobile is enough)
+Account   →  pick open account or create with a site name
+Date      →  defaults to today, editable, never future
+Items     →  searchable list with live availability; qty stepper per row
+             running total of rent/day shown as items are added
+Proof     →  optional photo of the loaded vehicle, optional signature pad
+Confirm   →  summary screen, then one commit
+Result    →  gate pass number, Share on WhatsApp, Print</pre>
+  <p>The whole flow must complete in under 20 seconds for a repeat customer, and must work with the network off.</p>
+
+  <h3>08.4 Customer portal <code>/s/[token]</code></h3>
+  <p>Single page, no navigation, mobile-only design. Shows: outstanding items with days held, total due in large type, list of bills with paid/pending status, payment history, and the yard's phone number. No prices per day unless <code>settings.show_rates_to_customer</code> is on. No login, no editing, no ordering.</p>
+
+  <h3>08.5 Visual direction</h3>
+  <p>Light theme throughout. Dense, high-contrast, legible in bright sun. System font stack for speed. Numbers in a tabular monospace so columns align. Colour used only for state — green settled, amber pending, red overdue, grey synced — never for decoration. No animation beyond 150&nbsp;ms state transitions. Bottom tab bar on mobile: Home · Issue · Return · Accounts · More.</p>
+</section>
+
+<!-- ============ 09 ============ -->
+<section id="s9">
+  <div class="sec-head"><span class="num">09</span><h2>Billing &amp; delivery</h2></div>
+
+  <h3>Bill generation</h3>
+  <ol>
+    <li>Admin picks an account and a period (defaults: last bill's <code>period_to</code> + 1 day → today).</li>
+    <li>Server runs the accrual engine over that period, produces line items per lot.</li>
+    <li>Preview screen shows every line with an editable adjustments row.</li>
+    <li>On confirm, the bill is written with <code>lines</code> frozen as JSONB and an invoice number from <code>settings.next_invoice_no</code> (allocated inside the transaction).</li>
+    <li>The bill is now immutable. Corrections require a credit adjustment and a new bill.</li>
+  </ol>
+
+  <h4>Bill contents</h4>
+  <pre>Yard name, address, phone                    INV-2026-0042
+Customer name, mobile, site                  Period: 01-Jun → 30-Jun-2026
+
+Item          Qty   From        To          Days   Rate/day   Amount
+Jack 3.0m     100   01-Jun      (open)        30      ₹2.00   ₹6,000
+Span 12ft      40   01-Jun      21-Jun        20      ₹4.00   ₹3,200
+Sheet         200   15-Jun      (open)        16      ₹1.00   ₹3,200
+                                                    Rent      ₹12,400
+Damaged: Jack 3.0m × 4 @ ₹450                       Damages    ₹1,800
+Transport (adjustment)                              Charges    ₹1,500
+                                                    ─────────────────
+                                                    Total     ₹15,700
+Less: payments received                                       ₹10,000
+                                                    Due        ₹5,700</pre>
+
+  <h3>PDF</h3>
+  <p>Server-side render at <code>/api/bills/[id]/pdf</code> using <code>@react-pdf/renderer</code>. A4 and 80&nbsp;mm thermal variants. Deterministic — the same bill id always produces byte-identical output. No headless browser (too heavy for the free tier).</p>
+
+  <h3>WhatsApp delivery</h3>
+  <p>No WhatsApp Business API in v1 — it costs money and needs approval. Instead, build a message composer that opens <code>wa.me/&lt;mobile&gt;?text=&lt;encoded&gt;</code> with a short summary plus the signed portal link. The admin taps once and sends from their own WhatsApp.</p>
+  <pre>Sample message:
+
+Yard Ledger — statement for SITE NAME
+Outstanding: 100 Jack, 200 Sheet
+Amount due: ₹5,700
+Full statement: https://app.example.com/s/xxxxxxxx</pre>
+
+  <h3>Overdue reminders</h3>
+  <p>A daily Vercel Cron at 09:00 IST builds a "to remind" list of accounts overdue past <code>due_on</code>. It does <strong>not</strong> send anything automatically — it surfaces a queue on the dashboard where the admin taps through, one WhatsApp at a time. Zero cost, and a human stays in the loop with contractors they know personally.</p>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <div class="sec-head"><span class="num">10</span><h2>Reports</h2></div>
+  <table>
+    <thead><tr><th style="width:22%">Report</th><th style="width:44%">Answers</th><th>Shape</th></tr></thead>
+    <tbody>
+      <tr><td>Ageing</td><td>Who has held stock longest and owes most</td><td>Customer × buckets 0–30 / 31–60 / 61–90 / 90+ days, sorted by amount</td></tr>
+      <tr><td>Outstanding stock</td><td>Where is every item right now</td><td>Item → accounts holding it, qty, days held</td></tr>
+      <tr><td>Utilisation</td><td>Which equipment earns its keep</td><td>Item: owned, avg qty out, utilisation %, revenue for period</td></tr>
+      <tr><td>Revenue</td><td>What the yard earned</td><td>Month × item, rent vs damage split, accrued vs collected</td></tr>
+      <tr><td>Collection</td><td>What actually came in</td><td>Payments by method and date, against billed</td></tr>
+      <tr><td>Day book</td><td>What happened today</td><td>Chronological movements, payments, new accounts — the daily close</td></tr>
+      <tr><td>Losses</td><td>Cost of damage and loss</td><td>Item × customer, qty lost/damaged, charged vs replacement cost</td></tr>
+    </tbody>
+  </table>
+  <p>Every report needs a date-range picker, CSV export, and a print stylesheet. Utilisation % = average qty out over the period ÷ qty owned. Profit in the true sense needs purchase cost per item — add <code>items.purchase_cost</code> and a simple straight-line recovery figure ("this item has recovered 340% of its purchase cost since acquisition"), which is the number a yard owner actually wants.</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="s11">
+  <div class="sec-head"><span class="num">11</span><h2>Settings</h2></div>
+  <ul>
+    <li><strong>Billing</strong> — the full §03.1 config, each with an inline explanation and a worked example that recalculates live as the value changes.</li>
+    <li><strong>Yard profile</strong> — name, address, phone, GSTIN (display only), logo for bills.</li>
+    <li><strong>Invoice</strong> — prefix, next number, payment terms text, default due days.</li>
+    <li><strong>Portal</strong> — token validity days, whether to show per-day rates to customers.</li>
+    <li><strong>Users</strong> — invite, deactivate, change role. A user is never deleted, only deactivated, because movements reference them.</li>
+  </ul>
+  <p>Changing <code>minimum_days</code> or <code>day_count_mode</code> affects all future accrual computations, including on open lots. Show a confirmation dialog stating exactly that, and log the change with the user and timestamp.</p>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="s12">
+  <div class="sec-head"><span class="num">12</span><h2>Infrastructure</h2></div>
+
+  <table>
+    <thead><tr><th style="width:22%">Layer</th><th style="width:28%">Choice</th><th>Free tier &amp; caveats</th></tr></thead>
+    <tbody>
+      <tr><td>App</td><td>Next.js 15 App Router on Vercel</td><td>100 GB bandwidth, generous function invocations</td></tr>
+      <tr><td>Database</td><td>Neon Postgres</td><td>0.5 GB storage, auto-suspends when idle and wakes on demand — no hard pause. Use branches for staging.</td></tr>
+      <tr><td>ORM</td><td>Drizzle + drizzle-kit migrations</td><td>Migrations committed to the repo, applied in CI</td></tr>
+      <tr><td>Auth</td><td>Better Auth</td><td>Self-hosted in the app, no external service</td></tr>
+      <tr><td>Files</td><td>Cloudflare R2</td><td>10 GB, zero egress fees. Presigned PUT from the browser.</td></tr>
+      <tr><td>Offline</td><td>Dexie + Workbox</td><td>Libraries only, no service cost</td></tr>
+      <tr><td>PDF</td><td>@react-pdf/renderer</td><td>Runs in the Node runtime, not Edge</td></tr>
+      <tr><td>Cron</td><td>Vercel Cron</td><td>Daily reminder queue build</td></tr>
+      <tr><td>Errors</td><td>Sentry free tier</td><td>5k events/month</td></tr>
+    </tbody>
+  </table>
+
+  <h4>Environment variables</h4>
+  <pre>DATABASE_URL=              <i># Neon pooled connection string</i>
+DATABASE_URL_UNPOOLED=     <i># for drizzle-kit migrations</i>
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+NEXT_PUBLIC_APP_URL=
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+PORTAL_TOKEN_PEPPER=       <i># extra secret mixed into the token hash</i>
+CRON_SECRET=</pre>
+
+  <h4>Cost ceiling</h4>
+  <p>Realistically free up to roughly 50 active accounts and a few thousand movements a month. The first thing to exceed a free tier is R2 storage if every gate pass gets a photo — compress client-side to ≤&nbsp;200&nbsp;KB WebP before upload, which buys years of headroom. Neon's 0.5&nbsp;GB is far beyond what this data volume needs. Set a calendar reminder to check Neon storage quarterly.</p>
+
+  <h4>Backups</h4>
+  <p>A GitHub Actions workflow runs <code>pg_dump</code> nightly and commits the gzipped dump to a private repo, keeping 30 days. Free, and it means the yard's ledger survives an account problem. Test the restore once before go-live — an untested backup is not a backup.</p>
+</section>
+
+<!-- ============ 13 ============ -->
+<section id="s13">
+  <div class="sec-head"><span class="num">13</span><h2>Build milestones</h2></div>
+  <p>Complete each milestone fully, including its acceptance criteria, before starting the next.</p>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M1</span><span class="t">Accrual engine</span><span class="est">no UI, no database</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Repo, TypeScript strict mode, Vitest.</li>
+        <li><code>/lib/accrual/</code> — types, FIFO lot engine, day counting, rounding, balance calculation.</li>
+        <li>All twelve test vectors from §03.5 as tests.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>All 12 vectors pass. The module imports nothing outside the standard library and a date helper.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M2</span><span class="t">Schema &amp; auth</span><span class="est">foundation</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Full §04 schema in Drizzle, migrations applied to a Neon branch.</li>
+        <li>Seed script: one org, one super_admin, ten realistic items with Kerala market rates.</li>
+        <li>Better Auth login, session, capability guard from §05.3.</li>
+        <li><code>/users</code> screen for creating staff.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>A staff-role user receives a 403 from <code>/api/payments</code> and sees no balance fields anywhere in the JSON response.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M3</span><span class="t">Core ledger, online only</span><span class="est">the working product</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Customers, items, accounts CRUD.</li>
+        <li>Issue and return flows, batch movements, reversals.</li>
+        <li>Account screen with live accrual and outstanding.</li>
+        <li>Stock screen from <code>v_item_stock</code>.</li>
+        <li>Server-side validation of the §02 invariants.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>A full lifecycle — open account, issue 100 jacks, add 40 spans, partial return, damaged return, close — works end to end and the numbers match a hand calculation.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M4</span><span class="t">Money</span><span class="est">bills &amp; payments</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Bill generation with preview, adjustments, frozen lines, invoice numbering.</li>
+        <li>Payments with oldest-first allocation and allocation records.</li>
+        <li>PDF in A4 and thermal formats.</li>
+        <li>Payment status per bill and per account.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>Issuing a bill, then changing an item's master rate, leaves the bill's totals unchanged.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M5</span><span class="t">Offline layer</span><span class="est">the hard part</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Service worker, precached shell, install prompt, manifest and icons.</li>
+        <li>Dexie mirror, bootstrap hydration, cursor-based pull.</li>
+        <li>Outbox, optimistic writes, background drain, idempotent push.</li>
+        <li><code>/sync</code> screen: pending, rejected, force sync, last sync time.</li>
+        <li>Offline status chip and stale-data stamps throughout.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>With the network disabled: record two issues and one return, force-quit the browser, reopen, reconnect — all three land exactly once, and a return that exceeds outstanding appears in "Needs attention" with a clear reason while the other two commit.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M6</span><span class="t">Customer portal</span><span class="est">read-only</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>Token minting, hashing, expiry, revocation.</li>
+        <li><code>/s/[token]</code> page, rate limiting, scoped cookie.</li>
+        <li>WhatsApp share composer for statements and bills.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>A revoked or expired token returns a plain "This link has expired — contact the yard" page and leaks no customer data.</li></ul>
+    </div>
+  </div>
+
+  <div class="ms">
+    <div class="ms-top"><span class="id">M7</span><span class="t">Reports &amp; polish</span><span class="est">launch prep</span></div>
+    <div class="ms-body">
+      <ul>
+        <li>All seven §10 reports with CSV export and print styles.</li>
+        <li>Dashboard, low-stock and negative-availability alerts.</li>
+        <li>Photo capture with client-side compression, signature pad.</li>
+        <li>Settings screens, nightly backup workflow, Sentry.</li>
+        <li>Data import: existing customers and open balances from CSV.</li>
+      </ul>
+      <div class="ac">Accepts when</div>
+      <ul><li>One month of real yard data is entered and the owner agrees every figure matches their register.</li></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 14 ============ -->
+<section id="s14">
+  <div class="sec-head"><span class="num">14</span><h2>Conventions &amp; guardrails</h2></div>
+
+  <h3>Structure</h3>
+  <pre>/app                routes and route handlers only — thin
+/lib/accrual        pure engine, no I/O          <b>← test heavily</b>
+/lib/db             drizzle schema, client, queries
+/lib/auth           better-auth config, capabilities, guard
+/lib/sync           outbox, dexie schema, drain, cursor
+/lib/validation     zod schemas shared client + server
+/components/ui      primitives
+/components/domain  IssueForm, ReturnSheet, LedgerRow, BalanceCard
+/docs/decisions.md  every judgement call made while building</pre>
+
+  <h3>Rules</h3>
+  <ul>
+    <li>Route handlers contain no business logic. They authenticate, validate, call a function in <code>/lib</code>, and serialise.</li>
+    <li>Every mutation runs in a transaction. Movement batches commit atomically per gate pass, except that a business rejection of one line in an offline sync push rejects only that line.</li>
+    <li>Money never touches a float. Parse rupee input to paise at the edge; format paise to rupees at the render layer. One utility each way, used everywhere.</li>
+    <li>Dates for accrual are <code>YYYY-MM-DD</code> strings throughout. Never pass a JS <code>Date</code> into the accrual engine.</li>
+    <li>Zod schemas are defined once and imported by both the client form and the server handler. Same rules offline and online.</li>
+    <li>Error codes are constants in a shared enum, not string literals scattered around.</li>
+    <li>No <code>any</code>. No disabled TypeScript errors. Strict mode from commit one.</li>
+    <li>Loading and empty states are designed, not afterthoughts. An empty account screen invites the first issue; it does not say "No data".</li>
+  </ul>
+
+  <h3>Interface copy</h3>
+  <p>Plain, active, specific, sentence case. The button says <em>Record return</em> and the toast says <em>Return recorded</em>. Errors explain what happened and what to do: "Only 6 jacks are out on this account — check the quantity." Never "Something went wrong."</p>
+
+  <div class="warn">
+    <span class="lbl">Stop and ask</span>
+    <p>Confirm with the yard owner before finalising: the day-counting convention, the minimum rental period, whether the issue day and return day are both billed, how damage is priced, and whether customers may see per-day rates. These five answers are worth more than any amount of code, and getting them wrong invalidates every bill the system produces.</p>
+  </div>
+</section>
+
+<footer>
+  Yard Ledger — Build Specification v1.0 · Feed this document to the coding agent in full before the first prompt.
+</footer>
+
+</main>
+</div>
+</body>
+</html>
