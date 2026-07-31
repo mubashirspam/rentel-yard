@@ -208,6 +208,26 @@ Preview deploys from `dev` use the same Neon `staging` strings — copy the
 staging project's variables into its *Preview* scope, and remove the
 ignored-build override there if you want a preview on every `dev` push.
 
+### Keeping the two sets of values straight
+
+| File | Gitignored | What it is for |
+|---|---|---|
+| `.env.example` | **No — committed** | The list of variable names. Never a real value. |
+| `.env.local` | Yes | Your laptop. Points at Neon `staging`. |
+| `.env.production` | Yes | Running CLI commands against the yard's database. |
+
+Vercel serves the app from its own Environment Variables, not from any file —
+copy `.env.production` into the production project's settings once, and treat
+the file afterwards as a way to run `db:migrate` and `seed` against production:
+
+```bash
+set -a; . ./.env.production; set +a; pnpm db:migrate
+```
+
+> `next build` and `next start` pick up `.env.production` automatically. Do not
+> run `pnpm start` on your laptop while that file has real values in it unless
+> you mean to be talking to the live database.
+
 ### Migrations on deploy
 
 Vercel does not run migrations. Apply them yourself, from your machine, against
