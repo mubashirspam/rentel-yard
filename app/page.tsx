@@ -68,35 +68,59 @@ export default async function HomePage() {
           An account appears here the first time equipment goes out to a site.
         </EmptyState>
       ) : (
-        <List>
-          {data.activeSites.map((site) => (
-            <li key={site.accountId}>
-              <RowLink href={`/accounts/${site.accountId}`}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">{site.customerName}</span>
-                  <Money
-                    paise={site.balance}
-                    className={`font-medium ${site.balance > 0 ? 'text-red' : 'text-green'}`}
-                  />
-                </div>
-                <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-2">
-                  <span>{site.siteName}</span>
-                  <span>
-                    {site.qtyOut > 0 ? (
-                      <>
-                        <Qty qty={site.qtyOut} /> out ·{' '}
-                        <Money paise={site.perDay} paiseDigits />
-                        /day
-                      </>
-                    ) : (
-                      'nothing out'
+        <ul className="space-y-2.5">
+          {data.activeSites.map((customer) => (
+            <li key={customer.customerId}>
+              <Card className="overflow-hidden">
+                {/* The contractor's own band: who, and what they hold in total.
+                    A yard asks "what has Ibrahim got out?" before it asks about
+                    any one site. */}
+                <div className="flex items-baseline justify-between gap-3 border-b border-rule bg-steel-soft px-4 py-2">
+                  <span className="truncate font-semibold text-steel">{customer.customerName}</span>
+                  <span className="flex shrink-0 items-center gap-1.5 text-sm">
+                    {customer.qtyOut > 0 && (
+                      <Chip tone="amber">
+                        <Qty qty={customer.qtyOut} /> out
+                      </Chip>
                     )}
+                    <Money
+                      paise={customer.balance}
+                      className={`font-semibold ${customer.balance > 0 ? 'text-red' : 'text-green'}`}
+                    />
                   </span>
                 </div>
-              </RowLink>
+
+                <ul className="divide-y divide-rule">
+                  {customer.sites.map((site, index) => (
+                    <li key={site.accountId}>
+                      <RowLink href={`/accounts/${site.accountId}`} index={index + 1}>
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="font-medium">{site.siteName}</span>
+                          <Money paise={site.balance} className="text-sm" />
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          {site.qtyOut > 0 ? (
+                            <>
+                              <Chip tone="amber">
+                                <Qty qty={site.qtyOut} /> out
+                              </Chip>
+                              <Chip>
+                                <Money paise={site.perDay} paiseDigits />
+                                /day
+                              </Chip>
+                            </>
+                          ) : (
+                            <Chip tone="green">✓ nothing out</Chip>
+                          )}
+                        </div>
+                      </RowLink>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             </li>
           ))}
-        </List>
+        </ul>
       )}
 
       <SectionTitle tone="steel">Today</SectionTitle>
@@ -119,23 +143,23 @@ export default async function HomePage() {
           {data.today.map((site) => (
             <li key={site.accountId}>
               <Card className="overflow-hidden">
-                <Link
-                  href={`/accounts/${site.accountId}`}
-                  className="tap block px-4 py-3 hover:bg-paper"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="font-semibold">{site.customerName}</span>
+                <Link href={`/accounts/${site.accountId}`} className="tap block hover:bg-paper">
+                  <div className="flex items-baseline justify-between gap-3 border-b border-rule bg-paper px-4 py-2">
+                    <span className="min-w-0 truncate">
+                      <span className="font-semibold">{site.customerName}</span>
+                      <span className="text-ink-2"> · {site.siteName}</span>
+                    </span>
                     {site.gatePasses.length > 0 && (
-                      <span className="shrink-0 text-xs text-ink-3">
+                      <span className="shrink-0 text-xs font-semibold text-ink-3">
                         {site.gatePasses.join(', ')}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-ink-2">{site.siteName}</p>
+                  <div className="px-4 py-2.5">
 
                   {site.out.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-steel">
                         Delivered
                       </p>
                       <ul className="mt-0.5 space-y-0.5">
@@ -151,7 +175,7 @@ export default async function HomePage() {
 
                   {site.back.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-green">
                         Returned
                       </p>
                       <ul className="mt-0.5 space-y-0.5">
@@ -174,6 +198,7 @@ export default async function HomePage() {
                       </ul>
                     </div>
                   )}
+                  </div>
                 </Link>
               </Card>
             </li>

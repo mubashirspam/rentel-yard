@@ -80,12 +80,29 @@ export interface LongHeldLot {
 
 export interface ActiveSite {
   accountId: string;
+  customerId: string;
   customerName: string;
   siteName: string;
   /** Paise owed on the account right now. */
   balance: number;
   qtyOut: number;
   /** Paise per day everything out is accruing at. */
+  perDay: number;
+}
+
+/**
+ * One contractor and every site they have open.
+ *
+ * A yard thinks in people first — "what has Ibrahim got out?" — and a flat list
+ * of sites makes that a scanning exercise when a contractor holds three.
+ */
+export interface ActiveCustomer {
+  customerId: string;
+  customerName: string;
+  sites: ActiveSite[];
+  /** Paise owed across all their open sites. */
+  balance: number;
+  qtyOut: number;
   perDay: number;
 }
 
@@ -105,7 +122,8 @@ export interface DashboardData {
   /** Movements dated today, grouped by the site they belong to (§08.1). */
   today: TodaySite[];
   /** Every open site, biggest balance first — the home screen's working list. */
-  activeSites: ActiveSite[];
+  /** Open sites, gathered under the contractor who holds them. */
+  activeSites: ActiveCustomer[];
   /** Bills past their due date with money still owed (§09 reminder queue). */
   overdue: Awaited<ReturnType<typeof listOverdueBills>>;
   overLimit: OverLimitCustomer[];
@@ -173,6 +191,7 @@ export async function getDashboard(
     totals.qtyOut += accountQtyOut;
     activeSites.push({
       accountId: account.id,
+      customerId: account.customerId,
       customerName: account.customerName,
       siteName: account.siteName,
       balance,
@@ -226,7 +245,7 @@ export async function getDashboard(
     asOf,
     totals,
     today: groupBySite(todayMovements),
-    activeSites: activeSites.sort((a, b) => b.balance - a.balance),
+    activeSites: byCustomer(activeSites),
     overdue,
     overLimit: overLimit.sort((a, b) => b.balance - a.balance),
     longHeld: longHeld.sort((a, b) => b.daysHeld - a.daysHeld).slice(0, 10),
@@ -348,4 +367,34 @@ function groupBySite(movements: TodayMovement[]): TodaySite[] {
 
   // Deliveries before collections: a yard's day runs that way.
   return [...sites.values()].sort((a, b) => b.out.length - a.out.length);
+}
+
+/** Gather sites under their contractor, biggest balance first. */
+function byCustomer(sites: ActiveSite[]): ActiveCustomer[] {
+  const customers = new Map<string, ActiveCustomer>();
+
+  for (const site of sites) {
+    const existing = customers.get(site.customerId) ?? {
+      customerId: site.customerId,
+      customerName: site.customerName,
+      sites: [],
+      balance: 0,
+      qtyOut: 0,
+      perDay: 0,
+    };
+
+    existing.sites.push(site);
+    existing.balance += site.balance;
+    existing.qtyOut += site.qtyOut;
+    existing.perDay += site.perDay;
+
+    customers.set(site.customerId, existing);
+  }
+
+  for (const customer of customers.values()) {
+    // Within a contractor, the site with most out is the one being asked about.
+    customer.sites.sort((a, b) => b.qtyOut - a.qtyOut || b.balance - a.balance);
+  }
+
+  return [...customers.values()].sort((a, b) => b.balance - a.balance);
 }
