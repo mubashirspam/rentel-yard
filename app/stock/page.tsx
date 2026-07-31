@@ -110,21 +110,46 @@ export default async function StockPage() {
                       </span>
                     </td>
                     <td className="px-2 py-2 text-right tabular">{row.qtyOwned}</td>
-                    <td className="px-2 py-2 text-right tabular">{row.qtyOut}</td>
-                    <td className="px-2 py-2 text-right tabular">{row.qtyLost}</td>
-                    <td
-                      className={`px-4 py-2 text-right tabular font-medium ${
-                        row.isNegative ? 'text-red' : row.isLow ? 'text-amber' : ''
-                      }`}
-                    >
-                      {row.qtyAvailable}
+                    <td className="px-2 py-2 text-right">
+                      {row.qtyOut > 0 ? (
+                        <Chip tone="amber">{row.qtyOut}</Chip>
+                      ) : (
+                        <span className="tabular text-ink-3">0</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      {row.qtyLost > 0 ? (
+                        <Chip tone="red">{row.qtyLost}</Chip>
+                      ) : (
+                        <span className="tabular text-ink-3">0</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {row.isNegative ? (
+                        <Chip tone="red">{row.qtyAvailable}</Chip>
+                      ) : row.isLow ? (
+                        <Chip tone="amber">{row.qtyAvailable} left</Chip>
+                      ) : (
+                        <Chip tone="green">{row.qtyAvailable}</Chip>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </Card>
-          <p className="mt-3 text-xs text-ink-3">
+          <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-3">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-green" /> available
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber" /> out / running low
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-red" /> lost / more out than owned
+            </span>
+          </p>
+          <p className="mt-1 text-xs text-ink-3">
             Available = owned − lost − out. Lost items reduce what the yard owns (§02).
           </p>
         </>

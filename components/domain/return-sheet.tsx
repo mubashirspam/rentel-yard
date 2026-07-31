@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import type { OutstandingLine } from '@/lib/accounts/service';
-import { newClientUuid, postJson } from '@/lib/api/client';
+import { newClientUuid } from '@/lib/api/client';
+import { submitOrQueue } from '@/lib/sync/submit';
 import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 
 import { Button, FormError, TextInput } from '../ui/field';
@@ -27,10 +28,30 @@ import { QtyStepper } from '../ui/stepper';
 
 type Condition = 'RETURN' | 'RETURN_DAMAGED' | 'LOST';
 
-const CONDITIONS: Array<{ value: Condition; label: string; hint: string }> = [
-  { value: 'RETURN', label: 'Good', hint: 'Back in the yard, rent stops' },
-  { value: 'RETURN_DAMAGED', label: 'Damaged', hint: 'Charged at the replacement rate' },
-  { value: 'LOST', label: 'Lost', hint: 'Charged, and written off owned stock' },
+const CONDITIONS: Array<{
+  value: Condition;
+  label: string;
+  hint: string;
+  activeClass: string;
+}> = [
+  {
+    value: 'RETURN',
+    label: 'Good',
+    hint: 'Back in the yard, rent stops',
+    activeClass: 'border-green bg-green-soft text-green',
+  },
+  {
+    value: 'RETURN_DAMAGED',
+    label: 'Damaged',
+    hint: 'Charged at the replacement rate',
+    activeClass: 'border-amber bg-amber-soft text-amber',
+  },
+  {
+    value: 'LOST',
+    label: 'Lost',
+    hint: 'Charged, and written off owned stock',
+    activeClass: 'border-red bg-red-soft text-red',
+  },
 ];
 
 interface Draft {
@@ -41,6 +62,8 @@ interface Draft {
 interface Receipt {
   gatePasses: string[];
   lines: Array<{ name: string; qty: number; unit: string; condition: Condition }>;
+  /** Held on the phone with no signal, waiting to be pushed (§07.5). */
+  queued?: boolean;
 }
 
 export function ReturnSheet({
@@ -98,6 +121,7 @@ export function ReturnSheet({
 
     const gatePasses: string[] = [];
     const recorded: Receipt['lines'] = [];
+    let queued = false;
 
     try {
       for (const group of groups) {
@@ -110,7 +134,7 @@ export function ReturnSheet({
               ? gatePassNo.trim()
               : `${gatePassNo.trim()}-${group.type === 'RETURN' ? 'R' : group.type === 'RETURN_DAMAGED' ? 'D' : 'L'}`;
 
-        await postJson('/api/movements', {
+        const payload = {
           accountId,
           type: group.type,
           movedAt,
@@ -120,7 +144,23 @@ export function ReturnSheet({
             qty: entry.draft.qty,
             clientUuid: newClientUuid(),
           })),
-        });
+        };
+
+        const outcome = await submitOrQueue(
+          '/api/movements',
+          payload,
+          {
+            op: 'movement.batch',
+            clientUuid: newClientUuid(),
+            queuedAt: new Date().toISOString(),
+            payload,
+          },
+          `Returned ${group.entries
+            .map((entry) => `${entry.draft.qty} × ${entry.line.itemName}`)
+            .join(', ')}`,
+        );
+
+        if (outcome.status === 'queued') queued = true;
 
         if (number) gatePasses.push(number);
         for (const entry of group.entries) {
@@ -133,7 +173,7 @@ export function ReturnSheet({
         }
       }
 
-      setReceipt({ gatePasses, lines: recorded });
+      setReceipt({ gatePasses, lines: recorded, queued });
       router.refresh();
     } catch (failure) {
       setError(
@@ -150,12 +190,23 @@ export function ReturnSheet({
     return (
       <section>
         <Card className="p-5">
-          <Chip tone="green">Recorded</Chip>
+          {receipt.queued ? (
+            <Chip tone="amber">Saved on this phone</Chip>
+          ) : (
+            <Chip tone="green">Recorded</Chip>
+          )}
           <h2 className="mt-3 text-lg font-semibold">{siteName}</h2>
           <p className="text-sm text-ink-2">
             {customerName} · {formatDayFull(movedAt)}
             {receipt.gatePasses.length > 0 && ` · gate pass ${receipt.gatePasses.join(', ')}`}
           </p>
+
+          {receipt.queued && (
+            <p className="mt-2 text-sm text-ink-2">
+              No signal. This return is queued and will send itself. If the equipment has already
+              been returned by someone else, it will appear under Needs attention on /sync.
+            </p>
+          )}
 
           <ul className="mt-4 divide-y divide-rule border-y border-rule">
             {receipt.lines.map((line) => (
@@ -252,10 +303,8 @@ export function ReturnSheet({
                           title={condition.hint}
                           onClick={() => update(line.itemId, { condition: condition.value })}
                           aria-pressed={active}
-                          className={`tap rounded border px-3 text-sm font-medium ${
-                            active
-                              ? 'border-steel bg-steel-soft text-steel'
-                              : 'border-rule bg-card text-ink-2'
+                          className={`tap rounded-xl border px-3 text-sm font-semibold ${
+                            active ? condition.activeClass : 'border-rule bg-card text-ink-2'
                           }`}
                         >
                           {condition.label}

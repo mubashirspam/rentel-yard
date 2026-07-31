@@ -9,6 +9,7 @@ import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 
 import {
   accrue,
+  addDays,
   computeBalance,
   differenceInCalendarDays,
   isAccountEmpty,
@@ -45,6 +46,17 @@ export interface OutstandingLine {
   accruedSoFar: number;
 }
 
+export interface MonthSummary {
+  /** First day of the month being summarised. */
+  from: string;
+  /** Paise of rent accrued in this calendar month. */
+  rentAccrued: number;
+  /** Paise of damage charged in this calendar month. */
+  damages: number;
+  /** Paise received in this calendar month. */
+  received: number;
+}
+
 export interface AccountDetail {
   account: AccountRow;
   customer: { id: string; name: string; mobile: string };
@@ -58,6 +70,8 @@ export interface AccountDetail {
   adjustments: Awaited<ReturnType<typeof loadAdjustments>>;
   ledger: LedgerEntry[];
   canClose: boolean;
+  /** What the current calendar month has added so far. */
+  thisMonth: MonthSummary;
 }
 
 export type LedgerEntry =
@@ -96,10 +110,17 @@ export type LedgerEntry =
       by: string | null;
     };
 
-/** Open a khata. A customer may hold several — usually one per site. */
+/**
+ * Open a khata. A customer may hold several — usually one per site.
+ *
+ * `clientUuid` is supplied by the offline sync push (§07.2) so that a queued
+ * "open site" pushed twice cannot become two khatas for one contractor. Online
+ * callers omit it.
+ */
 export async function openAccount(
   session: StaffSession,
   input: OpenAccountInput,
+  clientUuid?: string,
 ): Promise<AccountRow> {
   const database = db();
 
@@ -129,6 +150,7 @@ export async function openAccount(
       siteName: input.siteName,
       siteAddress: input.siteAddress ?? null,
       openedOn: input.openedOn,
+      clientUuid: clientUuid ?? null,
       createdBy: session.userId,
     })
     .returning({
@@ -173,6 +195,11 @@ export async function getAccountDetail(
   const accrual = accrue(movements, config, asOf);
   const balance = computeBalance({ accrual, adjustments, payments });
 
+  // This month's figures are a second replay valued at the day before the
+  // month began — the month is whatever accrued in between.
+  const monthStart = `${asOf.slice(0, 7)}-01`;
+  const beforeMonth = accrue(movements, config, addDays(monthStart, -1));
+
   return {
     account,
     customer,
@@ -185,6 +212,14 @@ export async function getAccountDetail(
     adjustments,
     ledger: await buildLedger(database, accountId, payments, adjustments),
     canClose: isAccountEmpty(accrual),
+    thisMonth: {
+      from: monthStart,
+      rentAccrued: accrual.rentTotal - beforeMonth.rentTotal,
+      damages: accrual.damageTotal - beforeMonth.damageTotal,
+      received: payments
+        .filter((payment) => payment.paidOn >= monthStart && payment.paidOn <= asOf)
+        .reduce((sum, payment) => sum + payment.amount, 0),
+    },
   };
 }
 
@@ -251,6 +286,10 @@ export interface AccountListRow extends AccountRow {
   /** Units still out across every item on the account. */
   qtyOut: number;
   daysOpen: number;
+  /** Paise of rent + damages accrued to date — compare with bills to spot the unbilled. */
+  accruedRent: number;
+  /** Paise per day everything still out is accruing at. */
+  perDay: number;
 }
 
 export interface AccountListFilters {
@@ -325,6 +364,8 @@ export async function listAccounts(
         balance: balance.balance,
         qtyOut: Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0),
         daysOpen: differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1,
+        accruedRent: accrual.rentTotal + accrual.damageTotal,
+        perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
       };
     })
     // Open first, then whoever owes most — that is the order an admin chases in.

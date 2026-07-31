@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { newClientUuid, postJson } from '@/lib/api/client';
+import { newClientUuid } from '@/lib/api/client';
+import { submitOrQueue } from '@/lib/sync/submit';
 import type { CustomerSummary } from '@/lib/customers/service';
 import { formatDayFull, formatMobile, waHref } from '@/lib/format';
 import type { StockRow } from '@/lib/stock/service';
@@ -40,6 +41,8 @@ interface BatchResponse {
 interface Committed extends BatchResponse {
   movedAt: string;
   lines: Array<{ name: string; qty: number; unit: string }>;
+  /** Recorded on the phone with no signal, waiting to be pushed (§07.5). */
+  queued?: boolean;
 }
 
 export function IssueForm({
@@ -91,25 +94,51 @@ export function IssueForm({
     setBusy(true);
     setError(undefined);
 
-    try {
-      const result = await postJson<BatchResponse>('/api/movements', {
-        accountId: target.accountId,
-        type: 'ISSUE',
-        movedAt,
-        gatePassNo: gatePassNo.trim() === '' ? null : gatePassNo.trim(),
-        lines: chosen.map(({ item, qty }) => ({
-          itemId: item.id,
-          qty,
-          clientUuid: newClientUuid(),
-        })),
-      });
+    const payload = {
+      accountId: target.accountId,
+      type: 'ISSUE' as const,
+      movedAt,
+      gatePassNo: gatePassNo.trim() === '' ? null : gatePassNo.trim(),
+      lines: chosen.map(({ item, qty }) => ({
+        itemId: item.id,
+        qty,
+        clientUuid: newClientUuid(),
+      })),
+    };
 
-      setCommitted({
-        gatePassNo: result.gatePassNo,
-        movedAt,
-        lines: chosen.map(({ item, qty }) => ({ name: item.name, qty, unit: item.unit })),
-        negativeAvailability: result.negativeAvailability ?? [],
-      });
+    const lines = chosen.map(({ item, qty }) => ({ name: item.name, qty, unit: item.unit }));
+
+    try {
+      // §07.2: with no signal this returns as soon as the gate pass is durable
+      // on the phone. The lorry does not wait for a network.
+      const outcome = await submitOrQueue<BatchResponse>(
+        '/api/movements',
+        payload,
+        {
+          op: 'movement.batch',
+          clientUuid: newClientUuid(),
+          queuedAt: new Date().toISOString(),
+          payload,
+        },
+        `Issued ${lines.map((line) => `${line.qty} × ${line.name}`).join(', ')}`,
+      );
+
+      setCommitted(
+        outcome.status === 'applied'
+          ? {
+              gatePassNo: outcome.data.gatePassNo,
+              movedAt,
+              lines,
+              negativeAvailability: outcome.data.negativeAvailability ?? [],
+            }
+          : {
+              gatePassNo: payload.gatePassNo,
+              movedAt,
+              lines,
+              negativeAvailability: [],
+              queued: true,
+            },
+      );
     } catch (failure) {
       setError((failure as Error).message);
     } finally {
@@ -204,11 +233,11 @@ export function IssueForm({
                   <Money paise={item.ratePerDay} paiseDigits />
                   /day ·{' '}
                   {item.qtyAvailable > 0 ? (
-                    <>
+                    <span className={item.isLow ? 'font-medium text-amber' : 'font-medium text-green'}>
                       <Qty qty={item.qtyAvailable} /> available
-                    </>
+                    </span>
                   ) : (
-                    <span className="text-red">none available</span>
+                    <span className="font-medium text-red">none available</span>
                   )}
                 </p>
               </div>
@@ -287,10 +316,23 @@ function IssueReceipt({ committed, target }: { committed: Committed; target: Iss
   return (
     <section>
       <Card className="p-5 print:border-0">
+        {/* §07.5: a row that has not synced carries a marker. Do not hide it,
+            and do not call it "Recorded" as though the yard's server has it. */}
         <div className="flex items-center gap-2">
-          <Chip tone="green">Recorded</Chip>
+          {committed.queued ? (
+            <Chip tone="amber">Saved on this phone</Chip>
+          ) : (
+            <Chip tone="green">Recorded</Chip>
+          )}
           {committed.gatePassNo && <span className="text-sm">Gate pass {committed.gatePassNo}</span>}
         </div>
+
+        {committed.queued && (
+          <p className="mt-2 text-sm text-ink-2">
+            No signal. This gate pass is queued and will send itself — closing the app will not
+            lose it.
+          </p>
+        )}
 
         <h2 className="mt-3 text-lg font-semibold">{target.siteName}</h2>
         <p className="text-sm text-ink-2">

@@ -29,6 +29,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -243,6 +244,12 @@ export const accounts = pgTable(
       .references(() => customers.id),
     siteName: text('site_name').notNull(),
     siteAddress: text('site_address'),
+    /**
+     * Device-minted idempotency key (§07.2). Null for accounts opened online
+     * before M5; unique per org where present, so a queued "open site" pushed
+     * twice cannot become two khatas for one contractor.
+     */
+    clientUuid: text('client_uuid'),
     status: text('status', { enum: ['open', 'closed'] })
       .notNull()
       .default('open'),
@@ -256,6 +263,11 @@ export const accounts = pgTable(
     check('accounts_status_check', sql`${t.status} in ('open', 'closed')`),
     index('accounts_customer_idx').on(t.customerId),
     index('accounts_org_seq_idx').on(t.orgId, t.serverSeq),
+    // Partial, because rows opened online carry no key and several nulls must
+    // not collide.
+    uniqueIndex('accounts_org_client_uuid_key')
+      .on(t.orgId, t.clientUuid)
+      .where(sql`${t.clientUuid} is not null`),
   ],
 );
 

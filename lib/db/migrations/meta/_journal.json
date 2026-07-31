@@ -22,6 +22,13 @@
       "when": 1785433026782,
       "tag": "0002_billing_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785482468484,
+      "tag": "0003_account_client_uuid",
+      "breakpoints": true
     }
   ]
 }

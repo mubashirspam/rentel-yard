@@ -18,7 +18,9 @@ export default async function MorePage() {
   const links = [
     { href: '/customers', label: 'Customers', hint: 'Search, add, credit limits', show: can(session, 'customer.manage') },
     { href: '/payments/new', label: 'Record a payment', hint: 'Cash, UPI, bank, cheque', show: can(session, 'payment.create') },
+    { href: '/sync', label: 'Sync', hint: 'Pending work, refusals, force a sync', show: true },
     { href: '/stock', label: 'Stock', hint: 'Owned, out, available', show: can(session, 'movement.create') },
+    { href: '/reports', label: 'Reports', hint: 'Billed and received, by year and month', show: can(session, 'money.view') },
     { href: '/items', label: 'Items', hint: 'Rates and quantities owned', show: can(session, 'item.manage') },
     { href: '/users', label: 'Staff & roles', hint: 'Who can sign in', show: can(session, 'user.manage') },
   ].filter((link) => link.show);

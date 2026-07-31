@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { newClientUuid, postJson } from '@/lib/api/client';
+import { newClientUuid } from '@/lib/api/client';
+import { submitOrQueue } from '@/lib/sync/submit';
 import { formatDayFull } from '@/lib/format';
 import { receiptMessage } from '@/lib/messages';
 import { formatPaise, rupeesToPaise } from '@/lib/money';
@@ -29,6 +30,8 @@ interface Result {
   paidOn: string;
   allocatedToBills: number;
   unallocated: number;
+  /** Recorded with no signal — allocation happens when it reaches the server. */
+  queued?: boolean;
 }
 
 /**
@@ -83,11 +86,9 @@ export function PaymentForm({
     }
 
     try {
-      const payload = await postJson<{
-        payment: { amount: number; method: string; paidOn: string };
-        allocatedToBills: number;
-        unallocated: number;
-      }>('/api/payments', {
+      // §07.5: payments may be recorded offline — it is money already in the
+      // yard's hand, and refusing to write it down helps nobody.
+      const body = {
         accountId,
         amount: paise,
         method,
@@ -95,15 +96,43 @@ export function PaymentForm({
         reference: reference.trim() === '' ? null : reference.trim(),
         remarks: remarks.trim() === '' ? null : remarks.trim(),
         clientUuid: newClientUuid(),
-      });
+      };
 
-      setResult({
-        amount: payload.payment.amount,
-        method: payload.payment.method,
-        paidOn: payload.payment.paidOn,
-        allocatedToBills: payload.allocatedToBills,
-        unallocated: payload.unallocated,
-      });
+      const outcome = await submitOrQueue<{
+        payment: { amount: number; method: string; paidOn: string };
+        allocatedToBills: number;
+        unallocated: number;
+      }>(
+        '/api/payments',
+        body,
+        {
+          op: 'payment.record',
+          clientUuid: newClientUuid(),
+          queuedAt: new Date().toISOString(),
+          payload: body,
+        },
+        `Payment ${formatPaise(paise)} by ${method}`,
+      );
+
+      setResult(
+        outcome.status === 'applied'
+          ? {
+              amount: outcome.data.payment.amount,
+              method: outcome.data.payment.method,
+              paidOn: outcome.data.payment.paidOn,
+              allocatedToBills: outcome.data.allocatedToBills,
+              unallocated: outcome.data.unallocated,
+            }
+          : {
+              amount: paise,
+              method,
+              paidOn,
+              // Which bills it settles is decided by the server when it lands.
+              allocatedToBills: 0,
+              unallocated: paise,
+              queued: true,
+            },
+      );
       router.refresh();
     } catch (failure) {
       setError((failure as Error).message);
@@ -118,7 +147,11 @@ export function PaymentForm({
     return (
       <section>
         <Card className="p-5">
-          <Chip tone="green">Recorded</Chip>
+          {result.queued ? (
+            <Chip tone="amber">Saved on this phone</Chip>
+          ) : (
+            <Chip tone="green">Recorded</Chip>
+          )}
           <div className="mt-3">
             <BigMoney paise={result.amount} tone="settled" />
           </div>

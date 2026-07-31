@@ -8,11 +8,12 @@
 import Link from 'next/link';
 
 import { Card, Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
-import { BigMoney, Money, Qty } from '@/components/ui/money';
+import { Money, Qty } from '@/components/ui/money';
 import { requirePageSession } from '@/lib/auth/page';
 import { today } from '@/lib/clock';
 import { getDashboard, LONG_HELD_DAYS } from '@/lib/dashboard/service';
 import { formatDay, formatDayFull, formatDays, MOVEMENT_LABEL } from '@/lib/format';
+import { formatPaise } from '@/lib/money';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,14 +38,61 @@ export default async function HomePage() {
         }
       />
 
-      <Card className="p-4">
-        <p className="text-sm font-medium text-ink-2">Out on hire</p>
-        <BigMoney paise={data.totals.outstanding} tone={data.totals.outstanding > 0 ? 'due' : 'settled'} />
-        <p className="mt-1 text-sm text-ink-2">
+      <Card className="border-steel/20 bg-gradient-to-br from-steel to-steel-strong p-4 text-white">
+        <p className="text-sm font-medium text-white/80">Out on hire</p>
+        <span className="tabular text-3xl font-bold tracking-tight">
+          {formatPaise(data.totals.outstanding)}
+        </span>
+        <p className="mt-1 text-sm text-white/80">
           <Qty qty={data.totals.qtyOut} /> across {data.totals.openAccounts}{' '}
           {data.totals.openAccounts === 1 ? 'open site' : 'open sites'}
         </p>
       </Card>
+
+      <SectionTitle
+        aside={
+          <Link href="/accounts" className="text-sm font-medium text-steel">
+            All accounts
+          </Link>
+        }
+      >
+        Active sites
+      </SectionTitle>
+      {data.activeSites.length === 0 ? (
+        <EmptyState title="No sites are open">
+          An account appears here the first time equipment goes out to a site.
+        </EmptyState>
+      ) : (
+        <List>
+          {data.activeSites.map((site) => (
+            <li key={site.accountId}>
+              <RowLink href={`/accounts/${site.accountId}`}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-medium">{site.customerName}</span>
+                  <Money
+                    paise={site.balance}
+                    className={`font-medium ${site.balance > 0 ? 'text-red' : 'text-green'}`}
+                  />
+                </div>
+                <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-2">
+                  <span>{site.siteName}</span>
+                  <span>
+                    {site.qtyOut > 0 ? (
+                      <>
+                        <Qty qty={site.qtyOut} /> out ·{' '}
+                        <Money paise={site.perDay} paiseDigits />
+                        /day
+                      </>
+                    ) : (
+                      'nothing out'
+                    )}
+                  </span>
+                </div>
+              </RowLink>
+            </li>
+          ))}
+        </List>
+      )}
 
       <SectionTitle>Today</SectionTitle>
       {data.today.length === 0 ? (

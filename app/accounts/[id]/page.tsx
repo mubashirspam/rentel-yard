@@ -21,7 +21,7 @@ import { can, requireCapability } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
 import { listBillsForAccount } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
-import { formatDay, formatDayFull, formatDays, formatMobile, telHref, waHref } from '@/lib/format';
+import { formatDay, formatDayFull, formatDays, formatMobile, formatMonth, telHref, waHref } from '@/lib/format';
 import { statementMessage, type MessageTemplate } from '@/lib/messages';
 import { orgName } from '@/lib/org';
 import { getMoneySummary } from '@/lib/payments/service';
@@ -68,6 +68,10 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
 
   const templates: MessageTemplate[] = [{ id: 'statement', label: 'Statement', text: statement }];
 
+  const billedThisMonth = bills
+    .filter((bill) => bill.issuedAt.slice(0, 7) === asOf.slice(0, 7))
+    .reduce((sum, bill) => sum + bill.grandTotal, 0);
+
   return (
     <Screen>
       <PageHeader
@@ -107,6 +111,32 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
 
       {showMoney && (
         <BalanceCard balance={balance} asOf={asOf} minimumDays={detail.config.minimum_days} />
+      )}
+
+      {showMoney && (
+        <Card className="mt-3 p-4">
+          <p className="text-sm font-semibold text-ink-2">
+            This month · {formatMonth(detail.thisMonth.from)}
+          </p>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <dt className="text-ink-2">Rent accrued</dt>
+            <dd className="text-right">
+              <Money paise={detail.thisMonth.rentAccrued} />
+            </dd>
+            <dt className="text-ink-2">Damages</dt>
+            <dd className="text-right">
+              <Money paise={detail.thisMonth.damages} />
+            </dd>
+            <dt className="text-ink-2">Billed</dt>
+            <dd className="text-right">
+              <Money paise={billedThisMonth} />
+            </dd>
+            <dt className="text-ink-2">Received</dt>
+            <dd className="text-right font-medium text-green">
+              <Money paise={detail.thisMonth.received} />
+            </dd>
+          </dl>
+        </Card>
       )}
 
       {money && money.billedTotal > 0 && (
@@ -153,7 +183,11 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
       </SectionTitle>
 
       {detail.outstanding.length > 0 ? (
-        <OutstandingList lines={detail.outstanding} accountId={account.id} />
+        <OutstandingList
+          lines={detail.outstanding}
+          accountId={account.id}
+          minimumDays={detail.config.minimum_days}
+        />
       ) : (
         <EmptyState title="Nothing is out on this site">
           {account.status === 'open'

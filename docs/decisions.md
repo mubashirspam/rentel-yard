@@ -552,6 +552,82 @@ rather than sending contractors to a 404. `statementMessage` already takes a
 
 ---
 
+## M5 — Offline layer
+
+### D51. The per-line carve-out lives here, and only here
+
+D30 made an online gate pass atomic: the contractor signed for the batch, so a
+rejected line rejects the whole thing. §07.4 says the opposite for a sync push —
+"reject that line only, other lines in the batch still commit" — and it is
+right, because the alternative is throwing away work the yard did hours ago
+over one line that no longer fits.
+
+Both are now true, in different code paths. `recordMovementBatch` (online) is
+all-or-nothing; `applySyncPush` walks the lines, testing each against the ledger
+**including the lines already accepted from the same batch**. Two returns of 30
+against an outstanding 40 therefore accept the first and refuse the second,
+rather than both passing a check taken before either was written.
+
+### D52. A retry is free, and proves it by returning the same ids
+
+Every write the push performs lands on a `(org_id, client_uuid)` unique index,
+so a device that loses the response and pushes the whole queue again inserts
+nothing and gets the same server ids back. `accounts` gained a `client_uuid`
+column for this (migration `0003`) — it was the one syncable table with no
+idempotency key, and "open site" pushed twice would otherwise have become two
+khatas for one contractor.
+
+Customers merge on `(org_id, mobile)` instead, per §07.4: the number *is* the
+identity, so two devices creating the same contractor offline converge on one
+row and the second device rewrites its local foreign keys to the id returned.
+
+### D53. A rejection is data, not an HTTP error
+
+`POST /api/sync/push` answers 200 whenever the request was well formed, with a
+per-entry verdict inside. A 4xx would tell the device to retry the whole push,
+including the entries that did commit. Refusals are written to
+`sync_rejections` with the payload that caused them, so "Needs attention"
+survives a browser restart and an admin can see it from another device.
+
+### D54. Caches never serve money
+
+The service worker is cache-first for the shell and **network-only for
+`/api/*`**. A yard worker looking at a stale outstanding figure and believing it
+is worse off than one who cannot see it at all: §07.5 asks for stale data to be
+stamped, and the way to keep that promise is to never let a cache answer for the
+ledger. What makes the app usable offline is the outbox, not a cached response.
+
+### D55. Offline writes, online reads — stated plainly
+
+This is the honest limit of what landed. §07.2's write path is complete: work is
+queued on the device, returns immediately, drains in the background with
+exponential backoff, and lands exactly once. `/issue`, `/return`, and
+`/payments/new` all queue when there is no signal and say **"Saved on this
+phone"** rather than "Recorded".
+
+The *read* path is not converted. Every screen is still a server component, so
+with no signal a fresh navigation gets the offline page rather than a
+Dexie-rendered account screen. The mirror, the cursor pull, and the bootstrap
+endpoint are all built and tested — the data is on the device — but nothing
+renders from it yet.
+
+So M5's acceptance criterion is only half met: work recorded **in an already-open
+tab** survives a force-quit and lands exactly once, which the server tests prove.
+Recording work after a cold start with no signal does not yet work. Finishing it
+means client-rendering the issue and return screens from the mirror, which is a
+day's work and should not be smuggled in under a milestone that claims to be
+done.
+
+### D56. `next build --webpack`
+
+Next 16 defaults to Turbopack, which silently skips `@serwist/next`'s webpack
+plugin — the build succeeds and no service worker is emitted, which is the worst
+possible failure mode for a PWA. The build script pins webpack until Serwist
+ships Turbopack support. Development is unaffected: the worker is disabled there
+anyway, because a service worker holding a stale bundle is only ever confusing.
+
+---
+
 ## First contact with a real database
 
 Two bugs that every test passed over, found within minutes of pointing the app

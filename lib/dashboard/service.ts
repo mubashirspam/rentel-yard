@@ -63,11 +63,24 @@ export interface LongHeldLot {
   daysHeld: number;
 }
 
+export interface ActiveSite {
+  accountId: string;
+  customerName: string;
+  siteName: string;
+  /** Paise owed on the account right now. */
+  balance: number;
+  qtyOut: number;
+  /** Paise per day everything out is accruing at. */
+  perDay: number;
+}
+
 export interface DashboardData {
   asOf: string;
   totals: DashboardTotals;
   /** Movements dated today, newest gate pass first (§08.1 "out today"). */
   today: TodayMovement[];
+  /** Every open site, biggest balance first — the home screen's working list. */
+  activeSites: ActiveSite[];
   /** Bills past their due date with money still owed (§09 reminder queue). */
   overdue: Awaited<ReturnType<typeof listOverdueBills>>;
   overLimit: OverLimitCustomer[];
@@ -110,6 +123,7 @@ export async function getDashboard(
 
   const totals: DashboardTotals = { openAccounts: accounts.length, outstanding: 0, qtyOut: 0 };
   const longHeld: LongHeldLot[] = [];
+  const activeSites: ActiveSite[] = [];
   const balanceByCustomer = new Map<string, number>();
 
   for (const account of accounts) {
@@ -117,8 +131,18 @@ export async function getDashboard(
     const accrual = accrue(ledger.movements, config, asOf);
     const { balance } = computeBalance({ accrual, ...ledger });
 
+    const accountQtyOut = Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0);
+
     totals.outstanding += balance;
-    totals.qtyOut += Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0);
+    totals.qtyOut += accountQtyOut;
+    activeSites.push({
+      accountId: account.id,
+      customerName: account.customerName,
+      siteName: account.siteName,
+      balance,
+      qtyOut: accountQtyOut,
+      perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
+    });
     balanceByCustomer.set(
       account.customerId,
       (balanceByCustomer.get(account.customerId) ?? 0) + balance,
@@ -161,6 +185,7 @@ export async function getDashboard(
     asOf,
     totals,
     today: todayMovements,
+    activeSites: activeSites.sort((a, b) => b.balance - a.balance),
     overdue,
     overLimit: overLimit.sort((a, b) => b.balance - a.balance),
     longHeld: longHeld.sort((a, b) => b.daysHeld - a.daysHeld).slice(0, 10),

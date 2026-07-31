@@ -9,6 +9,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { Fab } from './fab';
+import { SyncChip } from './sync-chip';
 import { TabBar } from './tab-bar';
 
 /**
@@ -18,8 +20,19 @@ import { TabBar } from './tab-bar';
 export function Screen({ children, nav = true }: { children: ReactNode; nav?: boolean }) {
   return (
     <>
+      {/* §07.5: the sync state is persistent and on every screen, because the
+          question "did that gate pass actually leave the phone?" has to be
+          answerable without going looking. */}
+      <div className="mx-auto flex w-full max-w-2xl justify-end px-4 pt-3">
+        <SyncChip />
+      </div>
       <main className="mx-auto w-full max-w-2xl px-4 py-5 pb-28">{children}</main>
-      {nav && <TabBar />}
+      {nav && (
+        <>
+          <Fab />
+          <TabBar />
+        </>
+      )}
     </>
   );
 }
@@ -45,6 +58,7 @@ export function PageHeader({
       )}
       <div className="flex items-start justify-between gap-3">
         <div>
+          <span aria-hidden className="mb-2 block h-1 w-10 rounded-full bg-steel" />
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-2">{subtitle}</p>}
         </div>
@@ -56,7 +70,7 @@ export function PageHeader({
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded border border-rule bg-card ${className}`}>{children}</div>
+    <div className={`rounded-2xl border border-rule bg-card shadow-sm ${className}`}>{children}</div>
   );
 }
 
@@ -86,7 +100,7 @@ export function Chip({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-medium ${CHIP_TONE[tone]}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${CHIP_TONE[tone]}`}
     >
       {children}
     </span>
@@ -119,7 +133,10 @@ export function EmptyState({
 /** A row of a list, tappable to somewhere. 44px minimum by way of `tap`. */
 export function RowLink({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <Link href={href} className="tap block px-4 py-3 hover:bg-paper active:bg-paper">
+    <Link
+      href={href}
+      className="tap block px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-paper active:bg-paper"
+    >
       {children}
     </Link>
   );

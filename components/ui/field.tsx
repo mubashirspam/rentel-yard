@@ -6,7 +6,7 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 
 const CONTROL =
-  'tap w-full rounded border border-rule bg-card px-3 py-2 text-base text-ink ' +
+  'tap w-full rounded-xl border border-rule bg-card px-3 py-2 text-base text-ink shadow-sm ' +
   'outline-none focus:border-steel focus:ring-2 focus:ring-steel/25 ' +
   'disabled:bg-paper disabled:text-ink-3';
 
@@ -78,12 +78,12 @@ export function Button({
 }) {
   const styles =
     variant === 'primary'
-      ? 'bg-steel text-white hover:bg-steel/90'
-      : 'border border-rule bg-card text-ink hover:bg-paper';
+      ? 'bg-steel text-white shadow-sm hover:bg-steel-strong'
+      : 'border border-rule bg-card text-ink shadow-sm hover:bg-paper';
 
   return (
     <button
-      className={`tap cursor-pointer rounded px-4 py-2 text-base font-medium disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
+      className={`tap cursor-pointer rounded-xl px-4 py-2 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
       {...props}
     >
       {children}
@@ -95,7 +95,7 @@ export function Button({
 export function FormError({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
-    <div role="alert" className="mb-4 rounded border border-red/30 bg-red-soft px-3 py-2 text-sm text-red">
+    <div role="alert" className="mb-4 rounded-xl border border-red/30 bg-red-soft px-3 py-2 text-sm text-red">
       {children}
     </div>
   );

@@ -309,6 +309,32 @@ export async function getBill(
 }
 
 /**
+ * Rent + damages already frozen into bills, per account. A listing compares
+ * this against what the ledger has accrued to say "billed" or "not billed".
+ */
+export async function billedRentByAccount(
+  session: StaffSession,
+  accountIds: readonly string[],
+): Promise<Map<string, number>> {
+  const billed = new Map<string, number>(accountIds.map((id) => [id, 0]));
+  if (accountIds.length === 0) return billed;
+
+  const rows = await db()
+    .select({
+      accountId: schema.bills.accountId,
+      total: sql<number>`coalesce(sum(${schema.bills.rentTotal} + ${schema.bills.damageTotal}), 0)::int`,
+    })
+    .from(schema.bills)
+    .where(
+      and(eq(schema.bills.orgId, session.orgId), inArray(schema.bills.accountId, [...accountIds])),
+    )
+    .groupBy(schema.bills.accountId);
+
+  for (const row of rows) billed.set(row.accountId, row.total);
+  return billed;
+}
+
+/**
  * Re-derive every allocation on an account, oldest bill first (§03.4).
  *
  * Allocations are derived data, so they are rebuilt wholesale rather than

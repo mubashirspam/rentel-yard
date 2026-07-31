@@ -41,7 +41,7 @@ pnpm dev
 Checks:
 
 ```bash
-pnpm test        # 194 tests, incl. Postgres-backed schema and lifecycle tests
+pnpm test        # 218 tests, incl. Postgres-backed schema and lifecycle tests
 pnpm typecheck
 pnpm lint
 ```
@@ -81,7 +81,7 @@ same `resolvePortalToken`:
 | M2 | Schema & auth | ✅ schema, migrations, roles, portal tokens |
 | M3 | Core ledger, online only | ✅ CRUD, issue & return flows, account screen, stock |
 | M4 | Money — bills & payments | ✅ bills, PDFs, payments, allocation, WhatsApp |
-| M5 | Offline layer | not started |
+| M5 | Offline layer | ◑ writes queue and sync exactly once; offline *reads* pending |
 | M6 | Customer portal | not started |
 | M7 | Reports & polish | not started |
 
@@ -142,6 +142,28 @@ they did. What the software does is keep the arithmetic straight.
   the overdue queue on the dashboard.
 - **Nothing is sent automatically.** Statements, invoices, receipts, and
   reminders are composed and opened in the admin's own WhatsApp (§09).
+
+## Offline
+
+The PWA installs to the home screen and the shell opens with no signal. What is
+built, and what is not, stated plainly:
+
+- **Writes survive.** Issue, return, and payment queue on the phone when there
+  is no signal, return immediately, and drain in the background — on reconnect,
+  on focus, and every 30 seconds. The receipt says *"Saved on this phone"*, not
+  "Recorded", until it lands.
+- **They land exactly once.** Every entry carries a device-minted id and every
+  write hits a `(org_id, client_uuid)` unique index, so pushing the same queue
+  twice changes nothing and returns the same server ids.
+- **A refusal is confined.** A return that no longer fits when it reaches the
+  yard is rejected on its own; the rest of the gate pass commits, and the
+  refusal appears under *Needs attention* on `/sync` with the reason.
+- **Nothing stale is passed off as current.** `/api/*` is never served from a
+  cache; the status chip and `/sync` say how old the mirror is.
+- **Not yet: offline reads.** Every screen is still server-rendered, so a cold
+  start with no signal reaches the offline page rather than a working account
+  screen. The mirror and cursor pull exist and are tested — nothing renders from
+  them yet. See D55.
 
 ## Ledger integrity
 

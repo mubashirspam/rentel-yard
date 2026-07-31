@@ -32,6 +32,12 @@ export function formatDayFull(iso: string): string {
   return `${formatDay(iso)} ${iso.slice(0, 4)}`;
 }
 
+/** `2026-06-01` (or `2026-06`) → `Jun 2026`. */
+export function formatMonth(iso: string): string {
+  const [year, month] = iso.split('-');
+  return `${MONTHS[Number(month) - 1] ?? '???'} ${year}`;
+}
+
 /** `20` → `20 days`, `1` → `1 day`. */
 export function formatDays(days: number): string {
   return `${days} ${days === 1 ? 'day' : 'days'}`;
