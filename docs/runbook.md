@@ -168,6 +168,40 @@ Re-running `pnpm seed` is safe: it adds nothing twice, and it *does* refresh the
 yard address, phone, and payment terms — that is how you correct the bill header
 until the settings screen arrives at M7. It never resets the invoice counter.
 
+### 3a. Showing it on a phone
+
+Two ways, both against the same dev server.
+
+**On the yard's wifi** — nothing to install. `pnpm dev` prints a Network address
+(`http://192.168.x.x:3000`); open that on the phone. Sign-in works because the
+auth client talks to whatever host served the page, and in development the
+server trusts the requesting origin (see `lib/auth/auth.ts`).
+
+**From anywhere else** — a phone on mobile data, or showing the owner from
+across town — needs a tunnel:
+
+```bash
+brew install ngrok          # once
+ngrok config add-authtoken <token from dashboard.ngrok.com>   # once
+pnpm dev                    # terminal 1
+pnpm tunnel                 # terminal 2 → https://<random>.ngrok-free.app
+```
+
+`next.config.ts` already allows the ngrok and LAN hosts through
+`allowedDevOrigins`; without that Next refuses cross-origin dev requests, which
+is the right default — otherwise any page on the internet could read your HMR
+stream.
+
+The tunnel is **https**, so this is also the only way to see the PWA behave
+properly before deploying: the service worker and the install prompt both need
+a secure origin. It is still `pnpm dev`, though, where the worker is switched
+off — for a real offline test, `pnpm build && pnpm start` behind the tunnel.
+
+> A tunnel puts your dev server, pointed at the **staging database with real
+> data**, on a public URL. The app requires a login, but the URL is guessable by
+> nobody and reachable by everybody. Stop the tunnel when you are done, and
+> never leave one running against production.
+
 ---
 
 ## 4. Vercel — two projects

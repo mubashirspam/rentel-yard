@@ -14,7 +14,8 @@
     "seed": "tsx scripts/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "tunnel": "ngrok http 3000"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

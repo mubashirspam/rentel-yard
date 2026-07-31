@@ -10,7 +10,24 @@ import type { NextConfig } from 'next';
  */
 const isDev = process.env.NODE_ENV === 'development';
 
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  /**
+   * Hosts allowed to reach the dev server from another origin.
+   *
+   * Next refuses cross-origin dev requests by default, which is right — without
+   * it any page on the internet could read your HMR stream. ngrok gives a fresh
+   * subdomain each run, so the tunnel domains are allowed by pattern rather
+   * than pinned. Development only; production serves from its own domain.
+   */
+  allowedDevOrigins: [
+    '*.ngrok-free.app',
+    '*.ngrok-free.dev',
+    '*.ngrok.app',
+    '*.ngrok.io',
+    // The LAN address a phone on the yard's wifi uses.
+    '192.168.*.*',
+  ],
+};
 
 /**
  * Serwist is not even initialised in development.
