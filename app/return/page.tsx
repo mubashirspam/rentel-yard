@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { ReturnSheet } from '@/components/domain/return-sheet';
 import { Chip, EmptyState, List, PageHeader, RowLink, Screen } from '@/components/ui/layout';
 import { Money, Qty } from '@/components/ui/money';
+import { Segmented } from '@/components/ui/segmented';
 import { getAccountDetail, listAccounts } from '@/lib/accounts/service';
 import { requireCapability, type StaffSession } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
@@ -88,6 +89,11 @@ async function AccountChooser({
   const accounts = all.filter((account) =>
     showReturned ? account.qtyOut === 0 : account.qtyOut > 0,
   );
+
+  // Counted on the control itself, so the split is visible before tapping —
+  // "3 still out, 12 completed" is the shape of the day at a glance.
+  const outstandingCount = all.filter((account) => account.qtyOut > 0).length;
+  const completedCount = all.length - outstandingCount;
   const billed = await billedRentByAccount(
     session,
     accounts.map((account) => account.id),
@@ -118,14 +124,23 @@ async function AccountChooser({
         </button>
       </form>
 
-      <div className="mb-3 flex gap-3 text-sm">
-        <Link href={tabHref('outstanding')} className={showReturned ? 'text-steel' : 'font-semibold'}>
-          Not returned
-        </Link>
-        <Link href={tabHref('returned')} className={showReturned ? 'font-semibold' : 'text-steel'}>
-          Returned
-        </Link>
-      </div>
+      <Segmented
+        className="mb-4"
+        options={[
+          {
+            href: tabHref('outstanding'),
+            label: 'Still out',
+            active: !showReturned,
+            count: outstandingCount,
+          },
+          {
+            href: tabHref('returned'),
+            label: 'Completed',
+            active: showReturned,
+            count: completedCount,
+          },
+        ]}
+      />
 
       {accounts.length === 0 ? (
         <EmptyState

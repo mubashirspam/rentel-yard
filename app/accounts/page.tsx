@@ -6,6 +6,7 @@
 import Link from 'next/link';
 
 import { Chip, EmptyState, List, PageHeader, RowLink, Screen } from '@/components/ui/layout';
+import { Segmented } from '@/components/ui/segmented';
 import { Money, Qty } from '@/components/ui/money';
 import { listAccounts } from '@/lib/accounts/service';
 import { requireCapability } from '@/lib/auth/guard';
@@ -59,20 +60,21 @@ export default async function AccountsPage({
         </button>
       </form>
 
-      <div className="mb-3 flex gap-3 text-sm">
-        <Link
-          href={q ? `/accounts?q=${encodeURIComponent(q)}` : '/accounts'}
-          className={showClosed ? 'text-steel' : 'font-semibold'}
-        >
-          Open
-        </Link>
-        <Link
-          href={q ? `/accounts?status=all&q=${encodeURIComponent(q)}` : '/accounts?status=all'}
-          className={showClosed ? 'font-semibold' : 'text-steel'}
-        >
-          All
-        </Link>
-      </div>
+      <Segmented
+        className="mb-4"
+        options={[
+          {
+            href: q ? `/accounts?q=${encodeURIComponent(q)}` : '/accounts',
+            label: 'Open',
+            active: !showClosed,
+          },
+          {
+            href: q ? `/accounts?status=all&q=${encodeURIComponent(q)}` : '/accounts?status=all',
+            label: 'All sites',
+            active: showClosed,
+          },
+        ]}
+      />
 
       {accounts.length === 0 ? (
         <EmptyState
