@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 
 import type { OutstandingLine } from '@/lib/accounts/service';
 import { newClientUuid } from '@/lib/api/client';
+import { EMPTY_SPLIT, setSplit, splitTotal, type ReturnSplit } from '@/lib/returns/split';
 import { mirrorOutstanding } from '@/lib/sync/queries';
 import { submitOrQueue } from '@/lib/sync/submit';
 import { formatDay, formatDayFull, formatDays } from '@/lib/format';
@@ -32,51 +33,34 @@ import { Money, Qty } from '../ui/money';
  * being counted.
  *
  * Quantities start filled to what is out, because the common case in a yard is
- * "everything is back". Adjusting one down beats counting all of them up.
+ * "everything is back" — adjusting one down beats counting all of them up. And
+ * marking a unit damaged *moves* it out of good rather than adding to the
+ * return: the lorry brought 42 either way.
  */
 
 type Condition = 'RETURN' | 'RETURN_DAMAGED' | 'LOST';
 
-interface Draft {
-  good: number;
-  damaged: number;
-  lost: number;
-}
+/** Shared with `lib/returns/split.ts`, which is where the arithmetic is tested. */
+type Draft = ReturnSplit;
 
-const EMPTY: Draft = { good: 0, damaged: 0, lost: 0 };
+const EMPTY = EMPTY_SPLIT;
 
 const CONDITIONS: Array<{
   key: keyof Draft;
   type: Condition;
   label: string;
-  hint: string;
   tone: string;
   ring: string;
 }> = [
-  {
-    key: 'good',
-    type: 'RETURN',
-    label: 'Good',
-    hint: 'Back on the racks — rent stops',
-    tone: 'text-green',
-    ring: 'bg-green-soft',
-  },
+  { key: 'good', type: 'RETURN', label: 'Good', tone: 'text-green', ring: 'bg-green-soft' },
   {
     key: 'damaged',
     type: 'RETURN_DAMAGED',
     label: 'Damaged',
-    hint: 'Back, but charged at the replacement rate',
     tone: 'text-amber',
     ring: 'bg-amber-soft',
   },
-  {
-    key: 'lost',
-    type: 'LOST',
-    label: 'Lost',
-    hint: 'Charged, and written off the yard’s stock',
-    tone: 'text-red',
-    ring: 'bg-red-soft',
-  },
+  { key: 'lost', type: 'LOST', label: 'Lost', tone: 'text-red', ring: 'bg-red-soft' },
 ];
 
 interface Receipt {
@@ -86,7 +70,7 @@ interface Receipt {
   queued?: boolean;
 }
 
-const total = (draft: Draft) => draft.good + draft.damaged + draft.lost;
+const total = splitTotal;
 
 export function ReturnSheet({
   accountId,
@@ -163,26 +147,23 @@ export function ReturnSheet({
   const damagedUnits = chosen.reduce((sum, entry) => sum + entry.draft.damaged, 0);
   const lostUnits = chosen.reduce((sum, entry) => sum + entry.draft.lost, 0);
 
-  function set(itemId: string, key: keyof Draft, value: number, max: number) {
+  /**
+   * Moving a unit between conditions, not adding one.
+   *
+   * The load is already counted — 42 came back. Marking one damaged means that
+   * unit is damaged *instead of* good, so a tap on Damaged+ takes one off Good
+   * rather than making the return 43. Nobody should have to decrement one
+   * column before incrementing another.
+   *
+   * The arithmetic lives in `lib/returns/split.ts` and is tested there: the
+   * invariant it protects — the lorry brought what the lorry brought — is the
+   * kind that goes wrong silently.
+   */
+  function set(itemId: string, key: keyof Draft, value: number, qtyOut: number) {
     setDrafts((all) => {
       const base = all ?? filled;
-      const current = base[itemId] ?? EMPTY;
-
-      // The three together can never exceed what is out. Capping against the
-      // room the other two leave means nudging one down frees the others up.
-      const others = total(current) - current[key];
-      const next = Math.max(0, Math.min(value, max - others));
-
-      return { ...base, [itemId]: { ...current, [key]: next } };
+      return { ...base, [itemId]: setSplit(base[itemId] ?? EMPTY, key, value, qtyOut) };
     });
-  }
-
-  function fillAll(itemId: string, qtyOut: number) {
-    setDrafts((all) => ({ ...(all ?? filled), [itemId]: { ...EMPTY, good: qtyOut } }));
-  }
-
-  function clear(itemId: string) {
-    setDrafts((all) => ({ ...(all ?? filled), [itemId]: { ...EMPTY } }));
   }
 
   async function commit() {
@@ -344,81 +325,71 @@ export function ReturnSheet({
         />
       </div>
 
-      <SectionTitle aside={<span className="text-sm text-ink-2">counts start filled</span>}>
+      <SectionTitle
+        aside={<span className="text-sm text-ink-2">damaged and lost come out of good</span>}
+      >
         What has come back?
       </SectionTitle>
 
-      <ul className="space-y-3">
+      <ul className="space-y-2.5">
         {outstanding.map((line) => {
           const draft = filled[line.itemId] ?? EMPTY;
           const counted = total(draft);
-          const left = line.qtyOut - counted;
 
           return (
             <li key={line.itemId}>
               <Card className="overflow-hidden">
-                <div className="flex items-start justify-between gap-3 border-b border-rule px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{line.itemName}</p>
+                <div className="px-3 pt-2.5">
+                  <p className="truncate font-semibold">{line.itemName}</p>
 
-                    {/* The facts a yard worker checks before counting: how many
-                        are out, since when, how long, and what it costs a day. */}
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                      <Chip tone="steel">
-                        <Qty qty={line.qtyOut} unit={line.unit} /> out
-                      </Chip>
-                      <Chip>since {formatDay(line.since)}</Chip>
-                      <Chip>{formatDays(line.daysHeld)}</Chip>
-                      <Chip>
-                        <Money paise={line.accruingPerDay} paiseDigits />
-                        /day
-                      </Chip>
-                    </div>
-                  </div>
-
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => fillAll(line.itemId, line.qtyOut)}
-                      className="tap rounded-lg border border-rule px-2.5 text-xs font-semibold text-ink-2 hover:bg-paper"
-                    >
-                      All
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => clear(line.itemId)}
-                      className="tap rounded-lg border border-rule px-2.5 text-xs font-semibold text-ink-2 hover:bg-paper"
-                    >
-                      None
-                    </button>
+                  {/* What a worker checks before counting: how many are out,
+                      since when, how long, what it costs a day. */}
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <Chip tone="steel">
+                      <Qty qty={line.qtyOut} unit={line.unit} /> out
+                    </Chip>
+                    <Chip>since {formatDay(line.since)}</Chip>
+                    <Chip>{formatDays(line.daysHeld)}</Chip>
+                    <Chip>
+                      <Money paise={line.accruingPerDay} paiseDigits />
+                      /day
+                    </Chip>
                   </div>
                 </div>
 
-                <div className="divide-y divide-rule">
+                <div className="mt-2 divide-y divide-rule border-t border-rule">
                   {CONDITIONS.map((condition) => (
                     <ConditionRow
                       key={condition.key}
                       label={condition.label}
-                      hint={condition.hint}
                       tone={condition.tone}
                       ring={condition.ring}
                       value={draft[condition.key]}
-                      canAdd={left > 0}
+                      // Damaged and Lost take from Good, so they need something
+                      // to take; Good is bounded by what is still out.
+                      canAdd={
+                        condition.key === 'good'
+                          ? counted < line.qtyOut
+                          : draft.good > 0
+                      }
                       onChange={(value) => set(line.itemId, condition.key, value, line.qtyOut)}
                     />
                   ))}
                 </div>
 
                 <p
-                  className={`px-4 py-2 text-xs font-medium ${
-                    counted === line.qtyOut ? 'bg-green-soft text-green' : 'text-ink-3'
+                  className={`px-3 py-1.5 text-xs font-semibold ${
+                    counted === line.qtyOut ? 'bg-green-soft text-green' : 'bg-paper text-ink-2'
                   }`}
                 >
-                  {counted === 0
-                    ? `Nothing counted — all ${line.qtyOut} staying out`
-                    : counted === line.qtyOut
-                      ? 'All of it accounted for'
-                      : `${counted} of ${line.qtyOut} · ${left} staying out`}
+                  <span className="tabular">{counted}</span> of{' '}
+                  <span className="tabular">{line.qtyOut}</span> returning
+                  {counted < line.qtyOut && (
+                    <span className="font-normal text-ink-3">
+                      {' '}
+                      · <span className="tabular">{line.qtyOut - counted}</span> staying out
+                    </span>
+                  )}
                 </p>
               </Card>
             </li>
@@ -428,7 +399,7 @@ export function ReturnSheet({
 
       <div className="sticky bottom-20 mt-4 rounded-2xl border border-rule bg-card p-4 shadow-lg">
         {chosen.length === 0 ? (
-          <p className="text-sm text-ink-2">Nothing counted yet. Use “All” on a row to fill it.</p>
+          <p className="text-sm text-ink-2">Nothing counted yet.</p>
         ) : (
           <>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -453,15 +424,15 @@ export function ReturnSheet({
 }
 
 /**
- * One quantity line: a thumb-sized − and + either side of the number.
+ * One quantity line, kept to a single row.
  *
- * Three rows rather than a condition toggle, because the split *is* the point.
- * 40 good, 1 damaged, 1 lost is one lorry, and it should be one screen — not a
- * mode to switch between and remember.
+ * No explanatory subtitle: "Damaged" needs no gloss to a yard worker, and two
+ * lines per condition made a three-item return taller than a phone. The − and +
+ * stay at 44px because §01's user is one-handed in a yard — that is the one
+ * dimension not worth reclaiming.
  */
 function ConditionRow({
   label,
-  hint,
   tone,
   ring,
   value,
@@ -469,7 +440,6 @@ function ConditionRow({
   onChange,
 }: {
   label: string;
-  hint: string;
   tone: string;
   ring: string;
   value: number;
@@ -479,11 +449,8 @@ function ConditionRow({
   const active = value > 0;
 
   return (
-    <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${active ? ring : ''}`}>
-      <div className="min-w-0">
-        <p className={`text-sm font-semibold ${active ? tone : 'text-ink-2'}`}>{label}</p>
-        <p className="truncate text-xs text-ink-3">{hint}</p>
-      </div>
+    <div className={`flex items-center justify-between gap-3 px-3 py-1 ${active ? ring : ''}`}>
+      <span className={`text-sm font-semibold ${active ? tone : 'text-ink-2'}`}>{label}</span>
 
       <div className="flex shrink-0 items-center gap-1">
         <button
