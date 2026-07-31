@@ -21,6 +21,26 @@ function build() {
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
 
+    /**
+     * In development, also trust whatever origin the request came from.
+     *
+     * Testing on the actual phone is not optional for this product — §01's
+     * user is standing in a yard holding one — and that means loading the dev
+     * server over the LAN at `http://192.168.x.x:3000`, which is not
+     * `BETTER_AUTH_URL`. Better Auth would otherwise refuse the sign-in as
+     * coming from an untrusted origin.
+     *
+     * Production stays strict: only the configured URLs, so a phishing page on
+     * another domain cannot drive this API with a stolen cookie.
+     */
+    trustedOrigins: (request) => {
+      const configured = [env.BETTER_AUTH_URL, env.NEXT_PUBLIC_APP_URL];
+      if (process.env.NODE_ENV !== 'development') return configured;
+
+      const origin = request?.headers.get('origin');
+      return origin ? [...configured, origin] : configured;
+    },
+
     database: drizzleAdapter(db(), {
       provider: 'pg',
       schema: {
