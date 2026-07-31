@@ -59,7 +59,19 @@ export interface BillAdjustmentDraft {
   appliedOn: IsoDate;
 }
 
+/**
+ * What a bill covers.
+ *
+ * `all` charges everything accrued in the period, including rent still running
+ * on equipment that has not come back. `returned` charges only lots that have
+ * actually been returned, and leaves the rest to be billed when they are —
+ * which is how a yard that invoices per completed job works: bill what is
+ * finished, bill the rest in five days when the lorry comes back.
+ */
+export type BillScope = 'all' | 'returned';
+
 export interface BillDraft {
+  scope: BillScope;
   periodFrom: IsoDate;
   periodTo: IsoDate;
   lines: BillLineDraft[];
@@ -73,6 +85,17 @@ export interface BillDraft {
   grandTotal: number;
   /** Rent this account has already been billed for, before this period. */
   billedEarlier: number;
+  /**
+   * Days already charged on each lot's *still-open* units, after this bill.
+   *
+   * This is what makes `returned` scope safe. Under `all`, a lot open at the
+   * period end is charged up to that date and the count records it, so the next
+   * bill subtracts it. Under `returned` nothing was charged for those units, so
+   * the count stays where it was and the full run is charged when they come
+   * back. Without it, skipping an open lot once would silently forgive its rent
+   * forever.
+   */
+  openDaysBilledByLot: Record<string, number>;
   /**
    * Total rent the ledger says has accrued from the account's first day to
    * `periodTo`, frozen into the bill.
@@ -98,13 +121,24 @@ export interface BuildBillDraftInput {
   periodFrom: IsoDate;
   periodTo: IsoDate;
   config: BillingConfig;
+  /** Defaults to `all` — the whole period, open lots included. */
+  scope?: BillScope;
+  /**
+   * `openDaysBilledByLot` from the last bill on this account. Absent for a
+   * first bill, and for bills issued before the field existed — in which case
+   * the prior accrual's open-line days are used, which is what those bills
+   * actually charged.
+   */
+  previousOpenDays?: Readonly<Record<string, number>>;
 }
 
 export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
   const { current, prior, itemNames, periodFrom, periodTo, config } = input;
+  const scope = input.scope ?? 'all';
 
   const priorByLot = groupLinesByLot(prior?.lines ?? []);
   const lines: BillLineDraft[] = [];
+  const openDaysBilledByLot: Record<string, number> = {};
 
   for (const [lotId, currentLines] of groupLinesByLot(current.lines)) {
     const priorLines = priorByLot.get(lotId) ?? [];
@@ -112,7 +146,11 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
     // Days already charged on the units that were still out when the last
     // period closed. Every unit of a lot open at that moment shares one issue
     // date, so one number covers them all.
-    const daysBilledEarlier = priorLines.find((line) => line.to === null)?.days ?? 0;
+    //
+    // Taken from what the last bill *recorded charging*, falling back to the
+    // prior accrual for bills raised before that was tracked.
+    const daysBilledEarlier =
+      input.previousOpenDays?.[lotId] ?? priorLines.find((line) => line.to === null)?.days ?? 0;
 
     // Returns that had already happened are settled: a closed slice never
     // changes, so it is billed once and skipped forever after. The engine
@@ -122,6 +160,13 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
 
     for (const line of currentLines.slice(settled)) {
       const days = line.days - daysBilledEarlier;
+
+      if (line.to === null) {
+        // Still out. Under `returned` scope it is not billed at all, and the
+        // count of what has been charged stays where it was.
+        openDaysBilledByLot[lotId] = scope === 'all' ? line.days : daysBilledEarlier;
+        if (scope === 'returned') continue;
+      }
 
       // Zero happens legitimately: a lot returned inside its minimum-days
       // window after being billed at that minimum owes nothing further.
@@ -162,6 +207,7 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
   );
 
   return {
+    scope,
     periodFrom,
     periodTo,
     lines,
@@ -173,6 +219,7 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
     creditsTotal,
     grandTotal: rentTotal + damageTotal + chargesTotal - creditsTotal,
     billedEarlier: prior?.rentTotal ?? 0,
+    openDaysBilledByLot,
     accruedToDate: current.rentTotal,
   };
 }

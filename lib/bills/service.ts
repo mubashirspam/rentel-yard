@@ -32,7 +32,7 @@ import type { StaffSession } from '../auth/guard';
 import { db, schema, withTransaction, type Database } from '../db/client';
 import { ERROR_CODES, LedgerError } from '../errors';
 import type { IssueBillInput } from '../validation/money';
-import { buildBillDraft, defaultBillPeriod, type BillDraft } from './draft';
+import { buildBillDraft, defaultBillPeriod, type BillDraft, type BillScope } from './draft';
 
 export interface BillPreview extends BillDraft {
   accountId: string;
@@ -93,6 +93,9 @@ export interface FrozenBill {
   billedEarlier: number;
   /** Rent accrued account-to-date at issue. See `BillDraft.accruedToDate`. */
   accruedToDate: number;
+  /** Days charged so far on each lot's still-open units. See the draft. */
+  openDaysBilledByLot?: Record<string, number>;
+  scope?: BillScope;
 }
 
 /**
@@ -104,7 +107,7 @@ export interface FrozenBill {
 export async function previewBill(
   session: StaffSession,
   accountId: string,
-  requested: { periodFrom?: string; periodTo?: string },
+  requested: { periodFrom?: string; periodTo?: string; scope?: BillScope },
   today: string,
 ): Promise<BillPreview> {
   const database = db();
@@ -114,7 +117,7 @@ export async function previewBill(
   const lastPeriodTo = await lastBilledPeriodEnd(database, accountId);
   const period = resolvePeriod(account, lastPeriodTo, requested, today);
 
-  const draft = await buildDraft(database, session.orgId, account, period);
+  const draft = await buildDraft(database, session.orgId, account, period, requested.scope);
 
   const [customer, payments, adjustments, movements, config, accruedWhenLastBilled] =
     await Promise.all([
@@ -181,10 +184,13 @@ export async function issueBill(
       );
     }
 
-    const draft = await buildDraft(tx, session.orgId, account, {
-      periodFrom: input.periodFrom,
-      periodTo: input.periodTo,
-    });
+    const draft = await buildDraft(
+      tx,
+      session.orgId,
+      account,
+      { periodFrom: input.periodFrom, periodTo: input.periodTo },
+      input.scope,
+    );
 
     if (draft.grandTotal === 0 && draft.lines.length === 0 && draft.damageLines.length === 0) {
       throw new LedgerError(
@@ -206,6 +212,8 @@ export async function issueBill(
       adjustments: draft.adjustments,
       billedEarlier: draft.billedEarlier,
       accruedToDate: draft.accruedToDate,
+      openDaysBilledByLot: draft.openDaysBilledByLot,
+      scope: draft.scope,
     };
 
     const [row] = await tx
@@ -491,6 +499,22 @@ async function allocatedByBill(
   return totals;
 }
 
+/** The frozen payload of the last bill before `periodFrom`. */
+async function lastFrozenBill(
+  tx: Database,
+  accountId: string,
+  periodFrom: string,
+): Promise<FrozenBill | null> {
+  const [row] = await tx
+    .select({ lines: schema.bills.lines })
+    .from(schema.bills)
+    .where(and(eq(schema.bills.accountId, accountId), lt(schema.bills.periodTo, periodFrom)))
+    .orderBy(desc(schema.bills.periodTo))
+    .limit(1);
+
+  return (row?.lines as FrozenBill | undefined) ?? null;
+}
+
 /**
  * What the last bill before `periodFrom` believed had accrued account-to-date.
  *
@@ -549,12 +573,17 @@ async function buildDraft(
   orgId: string,
   account: AccountRow,
   period: { periodFrom: string; periodTo: string },
+  scope: BillScope = 'all',
 ): Promise<BillDraft> {
   const [config, movements, adjustments] = await Promise.all([
     loadBillingConfig(tx, orgId),
     loadMovements(tx, account.id),
     loadAdjustments(tx, account.id),
   ]);
+
+  // What the previous bill recorded charging on lots still out — the record
+  // that keeps a `returned`-scoped bill from forgiving rent it skipped.
+  const lastFrozen = await lastFrozenBill(tx, account.id, period.periodFrom);
 
   const itemIds = [...new Set(movements.map((movement) => movement.itemId))];
   const itemNames = await loadItemNames(tx, itemIds);
@@ -572,6 +601,8 @@ async function buildDraft(
     periodFrom: period.periodFrom,
     periodTo: period.periodTo,
     config,
+    scope,
+    previousOpenDays: lastFrozen?.openDaysBilledByLot,
   });
 }
 

@@ -12,10 +12,14 @@ import { clientUuid, isoDate, longText, positivePaise, shortText, uuid } from '.
 
 export const PAYMENT_METHODS = ['cash', 'upi', 'bank', 'cheque', 'other'] as const;
 
+/** `returned` bills only lots that have come back; `all` includes open ones. */
+export const billScope = z.enum(['all', 'returned']);
+
 export const previewBillSchema = z.object({
   accountId: uuid,
   periodFrom: isoDate.optional(),
   periodTo: isoDate.optional(),
+  scope: billScope.optional(),
 });
 
 export const issueBillSchema = z
@@ -25,6 +29,8 @@ export const issueBillSchema = z
     periodTo: isoDate,
     /** Omit to take `settings.payment_terms_days` from the issue date. */
     dueOn: isoDate.optional().nullable(),
+    /** Defaults to `all`. See `BillScope`. */
+    scope: billScope.optional(),
   })
   .refine((bill) => bill.periodFrom <= bill.periodTo, {
     message: 'The period ends before it starts.',

@@ -285,3 +285,115 @@ describe('default period', () => {
     ).toEqual({ periodFrom: '2026-08-01', periodTo: '2026-08-01' });
   });
 });
+
+describe('billing only what has come back', () => {
+  const movements = [
+    issue('lot-1', JACK, 100, '2026-06-01', RATE_JACK),
+    returns('r-1', JACK, 60, '2026-06-21'),
+  ];
+
+  function returnedOnly(
+    from: string,
+    to: string,
+    options: { first?: boolean; previousOpenDays?: Record<string, number> } = {},
+  ) {
+    return buildBillDraft({
+      current: accrue(movements, CONFIG, to),
+      prior: options.first ? null : accrue(movements, CONFIG, previousDay(from)),
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: from,
+      periodTo: to,
+      config: CONFIG,
+      scope: 'returned',
+      previousOpenDays: options.previousOpenDays,
+    });
+  }
+
+  it('charges the returned units and leaves the rest alone', () => {
+    const bill = returnedOnly('2026-06-01', '2026-06-30', { first: true });
+
+    // 60 back on 21-Jun after 20 days. The other 40 are still on the site and
+    // are not on this invoice at all.
+    expect(bill.lines.map((line) => [line.qty, line.days, line.to])).toEqual([
+      [60, 20, '2026-06-21'],
+    ]);
+    expect(bill.rentTotal).toBe(60 * 20 * RATE_JACK);
+
+    // Nothing has been charged for the units still out.
+    expect(bill.openDaysBilledByLot['lot-1']).toBe(0);
+  });
+
+  /** The failure this scheme exists to prevent. */
+  it('charges the full run when the rest comes back later, not the remainder', () => {
+    const june = returnedOnly('2026-06-01', '2026-06-30', { first: true });
+
+    const withLateReturn = [...movements, returns('r-2', JACK, 40, '2026-07-05')];
+    const july = buildBillDraft({
+      current: accrue(withLateReturn, CONFIG, '2026-07-31'),
+      prior: accrue(withLateReturn, CONFIG, '2026-06-30'),
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-07-01',
+      periodTo: '2026-07-31',
+      config: CONFIG,
+      scope: 'returned',
+      previousOpenDays: june.openDaysBilledByLot,
+    });
+
+    // 01-Jun → 05-Jul is 34 days, and none of them were charged in June — so
+    // all 34 are charged now. Subtracting the 29 days June *would* have billed
+    // had it been a full bill is the silent-forgiveness bug.
+    expect(july.lines.map((line) => [line.qty, line.days])).toEqual([[40, 34]]);
+    expect(july.rentTotal).toBe(40 * 34 * RATE_JACK);
+
+    // And together the two invoices are exactly the account's whole accrual.
+    expect(june.rentTotal + july.rentTotal).toBe(
+      accrue(withLateReturn, CONFIG, '2026-07-31').rentTotal,
+    );
+  });
+
+  it('does not re-charge a slice a returned-scope bill already covered', () => {
+    const june = returnedOnly('2026-06-01', '2026-06-30', { first: true });
+    const july = returnedOnly('2026-07-01', '2026-07-31', {
+      previousOpenDays: june.openDaysBilledByLot,
+    });
+
+    expect(july.lines).toEqual([]);
+    expect(july.rentTotal).toBe(0);
+  });
+
+  it('picks up where a full bill left off when the yard switches scope', () => {
+    // June billed everything, open units included: 100 × 29 days.
+    const june = buildBillDraft({
+      current: accrue(movements, CONFIG, '2026-06-30'),
+      prior: null,
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-06-01',
+      periodTo: '2026-06-30',
+      config: CONFIG,
+      scope: 'all',
+    });
+    expect(june.openDaysBilledByLot['lot-1']).toBe(29);
+
+    const withLateReturn = [...movements, returns('r-2', JACK, 40, '2026-07-05')];
+    const july = buildBillDraft({
+      current: accrue(withLateReturn, CONFIG, '2026-07-31'),
+      prior: accrue(withLateReturn, CONFIG, '2026-06-30'),
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-07-01',
+      periodTo: '2026-07-31',
+      config: CONFIG,
+      scope: 'returned',
+      previousOpenDays: june.openDaysBilledByLot,
+    });
+
+    // 34 days out, 29 already charged in June → 5 remain.
+    expect(july.lines.map((line) => [line.qty, line.days])).toEqual([[40, 5]]);
+    expect(june.rentTotal + july.rentTotal).toBe(
+      accrue(withLateReturn, CONFIG, '2026-07-31').rentTotal,
+    );
+  });
+});

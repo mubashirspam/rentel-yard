@@ -21,10 +21,41 @@ import Link from 'next/link';
 export function Segmented({
   options,
   className = '',
+  onSelect,
 }: {
   options: Array<{ href: string; label: string; active: boolean; count?: number }>;
   className?: string;
+  /**
+   * Set where the choice is *not* a URL — the bill preview's scope, which is
+   * part of an unsaved draft rather than a place you can link to. The segments
+   * become buttons; everywhere else they stay links.
+   */
+  onSelect?: (index: number) => void;
 }) {
+  if (onSelect) {
+    return (
+      <div
+        role="group"
+        aria-label="Filter"
+        className={`inline-flex w-full max-w-md rounded-xl border border-rule bg-paper p-1 ${className}`}
+      >
+        {options.map((option, index) => (
+          <button
+            key={option.label}
+            type="button"
+            aria-pressed={option.active}
+            onClick={() => onSelect(index)}
+            className={`tap flex flex-1 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${
+              option.active ? 'bg-card text-steel shadow-sm' : 'text-ink-2 hover:text-ink'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <nav
       aria-label="Filter"

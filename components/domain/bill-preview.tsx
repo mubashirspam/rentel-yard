@@ -9,6 +9,7 @@ import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 import { rupeesToPaise } from '@/lib/money';
 
 import { Button, FormError, Select, TextInput } from '../ui/field';
+import { Segmented } from '../ui/segmented';
 import { Card, Chip, SectionTitle } from '../ui/layout';
 import { BigMoney, Money, Qty } from '../ui/money';
 
@@ -31,6 +32,7 @@ export function BillPreviewScreen({
 }) {
   const router = useRouter();
   const [preview, setPreview] = useState(initial);
+  const [scope, setScope] = useState<'all' | 'returned'>('all');
   const [periodFrom, setPeriodFrom] = useState(initial.periodFrom);
   const [periodTo, setPeriodTo] = useState(initial.periodTo);
   const [dueOn, setDueOn] = useState('');
@@ -39,12 +41,12 @@ export function BillPreviewScreen({
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(
-    async (from: string, to: string) => {
+    async (from: string, to: string, billScope: 'all' | 'returned' = 'all') => {
       setLoading(true);
       setError(undefined);
       try {
         const payload = await getJson<{ preview: BillPreview }>(
-          `/api/bills?accountId=${accountId}&periodFrom=${from}&periodTo=${to}`,
+          `/api/bills?accountId=${accountId}&periodFrom=${from}&periodTo=${to}&scope=${billScope}`,
         );
         setPreview(payload.preview);
       } catch (failure) {
@@ -62,9 +64,9 @@ export function BillPreviewScreen({
     if (periodFrom === preview.periodFrom && periodTo === preview.periodTo) return;
     if (periodFrom > periodTo) return;
 
-    const timer = setTimeout(() => void refresh(periodFrom, periodTo), 250);
+    const timer = setTimeout(() => void refresh(periodFrom, periodTo, scope), 250);
     return () => clearTimeout(timer);
-  }, [periodFrom, periodTo, preview.periodFrom, preview.periodTo, refresh]);
+  }, [periodFrom, periodTo, scope, preview.periodFrom, preview.periodTo, refresh]);
 
   async function issue() {
     setBusy(true);
@@ -75,6 +77,7 @@ export function BillPreviewScreen({
         accountId,
         periodFrom,
         periodTo,
+        scope,
         dueOn: dueOn === '' ? null : dueOn,
       });
       router.push(`/bills/${payload.bill.id}`);
@@ -93,6 +96,37 @@ export function BillPreviewScreen({
   return (
     <section>
       <FormError>{error}</FormError>
+
+      {/* Bill the whole period, or only what has actually come back and can be
+          invoiced as finished work. Equipment still on the site keeps accruing
+          either way — the difference is whether this invoice charges for it now
+          or the next one charges the whole run when it returns. */}
+      <div className="mb-4">
+        <Segmented
+          options={[
+            {
+              href: '#all',
+              label: 'Everything to date',
+              active: scope === 'all',
+            },
+            {
+              href: '#returned',
+              label: 'Only what came back',
+              active: scope === 'returned',
+            },
+          ]}
+          onSelect={(index) => {
+            const next = index === 0 ? 'all' : 'returned';
+            setScope(next);
+            void refresh(periodFrom, periodTo, next);
+          }}
+        />
+        <p className="mt-1.5 text-xs text-ink-3">
+          {scope === 'all'
+            ? 'Includes rent running on equipment still at the site.'
+            : 'Equipment still out is left off — it is billed in full when it comes back.'}
+        </p>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <TextInput

@@ -17,13 +17,14 @@ export const GET = handler(async (request: Request) => {
     accountId: url.searchParams.get('accountId') ?? undefined,
     periodFrom: url.searchParams.get('periodFrom') ?? undefined,
     periodTo: url.searchParams.get('periodTo') ?? undefined,
+    scope: url.searchParams.get('scope') ?? undefined,
   });
 
   return ok({
     preview: await previewBill(
       session,
       input.accountId,
-      { periodFrom: input.periodFrom, periodTo: input.periodTo },
+      { periodFrom: input.periodFrom, periodTo: input.periodTo, scope: input.scope },
       today(),
     ),
   });
