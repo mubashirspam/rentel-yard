@@ -12,7 +12,7 @@ import { Money, Qty } from '@/components/ui/money';
 import { requirePageSession } from '@/lib/auth/page';
 import { today } from '@/lib/clock';
 import { getDashboard, LONG_HELD_DAYS } from '@/lib/dashboard/service';
-import { formatDay, formatDayFull, formatDays, MOVEMENT_LABEL } from '@/lib/format';
+import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 import { formatPaise } from '@/lib/money';
 
 export const runtime = 'nodejs';
@@ -28,14 +28,6 @@ export default async function HomePage() {
       <PageHeader
         title="Yard Ledger"
         subtitle={`${session.name} · ${formatDayFull(asOf)}`}
-        action={
-          <Link
-            href="/issue"
-            className="tap inline-flex items-center rounded bg-steel px-4 font-medium text-white"
-          >
-            Issue
-          </Link>
-        }
       />
 
       <Card className="border-steel/20 bg-gradient-to-br from-steel to-steel-strong p-4 text-white">
@@ -48,6 +40,19 @@ export default async function HomePage() {
           {data.totals.openAccounts === 1 ? 'open site' : 'open sites'}
         </p>
       </Card>
+
+      {/* The four numbers an owner opens the app for: what has been invoiced,
+          what is still only accruing, what has come in, and what has not. */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Tally label="Billed" paise={data.totals.billed} />
+        <Tally label="Not billed yet" paise={data.totals.notBilled} tone="text-amber" />
+        <Tally label="Received" paise={data.totals.received} tone="text-green" />
+        <Tally
+          label="Not received"
+          paise={data.totals.notReceived}
+          tone={data.totals.notReceived > 0 ? 'text-red' : undefined}
+        />
+      </div>
 
       <SectionTitle
         aside={
@@ -103,33 +108,77 @@ export default async function HomePage() {
               href="/issue"
               className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
             >
-              Record an issue
+              Record a delivery
             </Link>
           }
         >
-          Gate passes recorded today — out and back — appear here.
+          Deliveries and returns recorded today appear here, grouped by site.
         </EmptyState>
       ) : (
-        <List>
-          {data.today.map((movement, index) => (
-            <li key={`${movement.accountId}-${index}`}>
-              <RowLink href={`/accounts/${movement.accountId}`}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-medium">
-                    {MOVEMENT_LABEL[movement.type] ?? movement.type} <Qty qty={movement.qty} /> ×{' '}
-                    {movement.itemName}
-                  </span>
-                  {movement.gatePassNo && (
-                    <span className="shrink-0 text-xs text-ink-3">{movement.gatePassNo}</span>
+        <ul className="space-y-2.5">
+          {data.today.map((site) => (
+            <li key={site.accountId}>
+              <Card className="overflow-hidden">
+                <Link
+                  href={`/accounts/${site.accountId}`}
+                  className="tap block px-4 py-3 hover:bg-paper"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-semibold">{site.customerName}</span>
+                    {site.gatePasses.length > 0 && (
+                      <span className="shrink-0 text-xs text-ink-3">
+                        {site.gatePasses.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-ink-2">{site.siteName}</p>
+
+                  {site.out.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+                        Delivered
+                      </p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {site.out.map((line, index) => (
+                          <li key={`out-${index}`} className="flex justify-between gap-3 text-sm">
+                            <span>{line.itemName}</span>
+                            <Qty qty={line.qty} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                </div>
-                <p className="mt-0.5 text-sm text-ink-2">
-                  {movement.customerName} · {movement.siteName}
-                </p>
-              </RowLink>
+
+                  {site.back.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">
+                        Returned
+                      </p>
+                      <ul className="mt-0.5 space-y-0.5">
+                        {site.back.map((line, index) => (
+                          <li key={`back-${index}`} className="flex justify-between gap-3 text-sm">
+                            <span>
+                              {line.itemName}
+                              {line.condition !== 'good' && (
+                                <>
+                                  {' '}
+                                  <Chip tone={line.condition === 'lost' ? 'red' : 'amber'}>
+                                    {line.condition}
+                                  </Chip>
+                                </>
+                              )}
+                            </span>
+                            <Qty qty={line.qty} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </Link>
+              </Card>
             </li>
           ))}
-        </List>
+        </ul>
       )}
 
       {/* §09 reminder queue. Nothing is sent automatically — the admin taps
@@ -245,5 +294,17 @@ export default async function HomePage() {
         WhatsApp, after someone has read it.
       </p>
     </Screen>
+  );
+}
+
+/** One of the four money counts. Quiet when it is zero. */
+function Tally({ label, paise, tone }: { label: string; paise: number; tone?: string }) {
+  return (
+    <Card className="p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-3">{label}</p>
+      <p className={`tabular mt-0.5 text-lg font-bold ${paise === 0 ? 'text-ink-3' : (tone ?? '')}`}>
+        {formatPaise(paise)}
+      </p>
+    </Card>
   );
 }

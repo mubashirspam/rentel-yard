@@ -87,7 +87,7 @@ export function AccountActions({
           href={`/issue?account=${accountId}`}
           className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
         >
-          Issue more
+          Deliver more
         </Link>
         <Link
           href={`/return?account=${accountId}`}

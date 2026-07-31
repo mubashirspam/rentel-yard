@@ -201,13 +201,13 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
       ) : (
         <EmptyState title="Nothing is out on this site">
           {account.status === 'open'
-            ? 'Every item issued here has come back. Issue more to start it up again.'
+            ? 'Everything delivered here has come back. Deliver more to start it up again.'
             : 'The site was closed once everything was returned.'}
           {account.status === 'open' && (
             <>
               {' '}
               <Link href={`/issue?account=${account.id}`} className="font-medium text-steel">
-                Issue equipment
+                Deliver equipment
               </Link>
             </>
           )}

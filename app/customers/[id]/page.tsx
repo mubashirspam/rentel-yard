@@ -8,6 +8,7 @@
 import Link from 'next/link';
 
 import { CustomerProfile } from '@/components/domain/customer-profile';
+import { NewSite } from '@/components/domain/new-site';
 import {
   Chip,
   EmptyState,
@@ -103,8 +104,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       <SectionTitle
         aside={
           !customer.isBlocked ? (
-            <Link href={`/issue`} className="text-sm font-medium text-steel">
-              Issue to a site
+            <Link href="/issue" className="text-sm font-medium text-steel">
+              Deliver to a site
             </Link>
           ) : undefined
         }
@@ -150,6 +151,12 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
             </li>
           ))}
         </List>
+      )}
+
+      {!customer.isBlocked && (
+        <div className="mt-3">
+          <NewSite customerId={customer.id} customerName={customer.name} today={asOf} />
+        </div>
       )}
 
       <SectionTitle>Details</SectionTitle>

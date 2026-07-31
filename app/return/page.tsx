@@ -156,7 +156,7 @@ async function AccountChooser({
               href="/issue"
               className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white shadow-sm"
             >
-              Issue equipment
+              Record a delivery
             </Link>
           }
         >

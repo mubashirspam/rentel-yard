@@ -11,7 +11,7 @@
  * the whole screen costs a handful of queries rather than one per account.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { accrue, computeBalance } from '../accrual';
 import { loadBillingConfig, loadLedgers } from '../accounts/repository';
@@ -33,6 +33,21 @@ export interface DashboardTotals {
   outstanding: number;
   /** Units out across the whole yard. */
   qtyOut: number;
+
+  /*
+   * The money in four numbers, because "how much have we billed and how much
+   * has actually come in" is the question an owner opens the app to answer.
+   * Billed and received are facts from the bills and payments tables; not-yet
+   * billed is derived, and is what makes the four reconcile.
+   */
+  /** Paise frozen into invoices, ever. */
+  billed: number;
+  /** Paise accrued but on no invoice yet — rent still running, mostly. */
+  notBilled: number;
+  /** Paise actually received. */
+  received: number;
+  /** Paise invoiced and still owed. */
+  notReceived: number;
 }
 
 export interface TodayMovement {
@@ -74,11 +89,21 @@ export interface ActiveSite {
   perDay: number;
 }
 
+/** Today's movements for one site, so the dashboard reads as gate passes. */
+export interface TodaySite {
+  accountId: string;
+  customerName: string;
+  siteName: string;
+  out: Array<{ itemName: string; qty: number }>;
+  back: Array<{ itemName: string; qty: number; condition: 'good' | 'damaged' | 'lost' }>;
+  gatePasses: string[];
+}
+
 export interface DashboardData {
   asOf: string;
   totals: DashboardTotals;
-  /** Movements dated today, newest gate pass first (§08.1 "out today"). */
-  today: TodayMovement[];
+  /** Movements dated today, grouped by the site they belong to (§08.1). */
+  today: TodaySite[];
   /** Every open site, biggest balance first — the home screen's working list. */
   activeSites: ActiveSite[];
   /** Bills past their due date with money still owed (§09 reminder queue). */
@@ -109,7 +134,7 @@ export async function getDashboard(
     .innerJoin(schema.customers, eq(schema.customers.id, schema.accounts.customerId))
     .where(and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.status, 'open')));
 
-  const [config, ledgers, items, stock, todayMovements, overdue] = await Promise.all([
+  const [config, ledgers, items, stock, todayMovements, overdue, money] = await Promise.all([
     loadBillingConfig(database, session.orgId),
     loadLedgers(
       database,
@@ -119,9 +144,19 @@ export async function getDashboard(
     listStock(session),
     loadTodayMovements(session.orgId, asOf),
     listOverdueBills(session, asOf),
+    orgMoneyTotals(session.orgId),
   ]);
 
-  const totals: DashboardTotals = { openAccounts: accounts.length, outstanding: 0, qtyOut: 0 };
+  let accruedOnOpenAccounts = 0;
+  const totals: DashboardTotals = {
+    openAccounts: accounts.length,
+    outstanding: 0,
+    qtyOut: 0,
+    billed: money.billed,
+    notBilled: 0,
+    received: money.received,
+    notReceived: Math.max(0, money.billed - money.allocated),
+  };
   const longHeld: LongHeldLot[] = [];
   const activeSites: ActiveSite[] = [];
   const balanceByCustomer = new Map<string, number>();
@@ -134,6 +169,7 @@ export async function getDashboard(
     const accountQtyOut = Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0);
 
     totals.outstanding += balance;
+    accruedOnOpenAccounts += accrual.rentTotal + accrual.damageTotal;
     totals.qtyOut += accountQtyOut;
     activeSites.push({
       accountId: account.id,
@@ -181,10 +217,15 @@ export async function getDashboard(
     });
   }
 
+  // Accrued but uninvoiced. Clamped at zero: a yard that has billed ahead of
+  // the accrual (a minimum charge, a manual adjustment) should read "nothing
+  // pending", not a negative.
+  totals.notBilled = Math.max(0, accruedOnOpenAccounts - money.billed + money.billedOnClosed);
+
   return {
     asOf,
     totals,
-    today: todayMovements,
+    today: groupBySite(todayMovements),
     activeSites: activeSites.sort((a, b) => b.balance - a.balance),
     overdue,
     overLimit: overLimit.sort((a, b) => b.balance - a.balance),
@@ -220,4 +261,91 @@ async function loadTodayMovements(orgId: string, asOf: string): Promise<TodayMov
     .innerJoin(schema.accounts, eq(schema.accounts.id, schema.movements.accountId))
     .innerJoin(schema.customers, eq(schema.customers.id, schema.accounts.customerId))
     .where(and(eq(schema.movements.orgId, orgId), eq(schema.movements.movedAt, asOf)));
+}
+
+/**
+ * Org-wide money, straight from the two tables that record it.
+ *
+ * Kept apart from the per-account replay above: these are sums of what was
+ * frozen and what was received, and neither is derived from the ledger.
+ */
+async function orgMoneyTotals(orgId: string): Promise<{
+  billed: number;
+  allocated: number;
+  received: number;
+  billedOnClosed: number;
+}> {
+  const database = db();
+
+  const [bills, allocations, payments, closed] = await Promise.all([
+    database
+      .select({ total: sql<number>`coalesce(sum(${schema.bills.grandTotal}), 0)::bigint` })
+      .from(schema.bills)
+      .where(eq(schema.bills.orgId, orgId)),
+    database
+      .select({ total: sql<number>`coalesce(sum(${schema.paymentAllocations.amount}), 0)::bigint` })
+      .from(schema.paymentAllocations)
+      .innerJoin(schema.payments, eq(schema.payments.id, schema.paymentAllocations.paymentId))
+      .where(eq(schema.payments.orgId, orgId)),
+    database
+      .select({ total: sql<number>`coalesce(sum(${schema.payments.amount}), 0)::bigint` })
+      .from(schema.payments)
+      .where(eq(schema.payments.orgId, orgId)),
+    // Bills against sites that are already closed — their accrual is no longer
+    // in `accruedOnOpenAccounts`, so it must come off the comparison too.
+    database
+      .select({ total: sql<number>`coalesce(sum(${schema.bills.grandTotal}), 0)::bigint` })
+      .from(schema.bills)
+      .innerJoin(schema.accounts, eq(schema.accounts.id, schema.bills.accountId))
+      .where(and(eq(schema.bills.orgId, orgId), eq(schema.accounts.status, 'closed'))),
+  ]);
+
+  return {
+    billed: Number(bills[0]?.total ?? 0),
+    allocated: Number(allocations[0]?.total ?? 0),
+    received: Number(payments[0]?.total ?? 0),
+    billedOnClosed: Number(closed[0]?.total ?? 0),
+  };
+}
+
+/**
+ * One card per site, with what went out and what came back.
+ *
+ * A flat list of movements makes an admin do the grouping in their head — "was
+ * that the same lorry?" — when the yard's own unit of work is the site, and
+ * within it the gate pass.
+ */
+function groupBySite(movements: TodayMovement[]): TodaySite[] {
+  const sites = new Map<string, TodaySite>();
+
+  for (const movement of movements) {
+    const site = sites.get(movement.accountId) ?? {
+      accountId: movement.accountId,
+      customerName: movement.customerName,
+      siteName: movement.siteName,
+      out: [],
+      back: [],
+      gatePasses: [],
+    };
+
+    if (movement.type === 'ISSUE') {
+      site.out.push({ itemName: movement.itemName, qty: movement.qty });
+    } else if (movement.type !== 'REVERSAL') {
+      site.back.push({
+        itemName: movement.itemName,
+        qty: movement.qty,
+        condition:
+          movement.type === 'LOST' ? 'lost' : movement.type === 'RETURN_DAMAGED' ? 'damaged' : 'good',
+      });
+    }
+
+    if (movement.gatePassNo && !site.gatePasses.includes(movement.gatePassNo)) {
+      site.gatePasses.push(movement.gatePassNo);
+    }
+
+    sites.set(movement.accountId, site);
+  }
+
+  // Deliveries before collections: a yard's day runs that way.
+  return [...sites.values()].sort((a, b) => b.out.length - a.out.length);
 }

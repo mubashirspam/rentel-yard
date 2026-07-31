@@ -45,12 +45,12 @@ export default async function IssuePage({
   return (
     <Screen>
       <PageHeader
-        title="New issue"
+        title="New delivery"
         subtitle="Equipment leaving the yard. Rent starts on the date you record."
         back={
           target
             ? { href: `/accounts/${target.accountId}`, label: target.siteName }
-            : { href: '/issue', label: 'Issue' }
+            : { href: '/issue', label: 'Deliver' }
         }
       />
       <IssueForm items={stock} today={asOf} initialTarget={target} />
@@ -71,8 +71,8 @@ async function ActiveRentals({
   return (
     <Screen>
       <PageHeader
-        title="Issue"
-        subtitle="Sites with equipment on hire — tap one to issue more"
+        title="Deliveries"
+        subtitle="Sites with equipment on hire — tap one to deliver more"
         action={
           <Link
             href="/issue?new=1"

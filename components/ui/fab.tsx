@@ -13,7 +13,7 @@ import { useState } from 'react';
 const ACTIONS = [
   {
     href: '/issue?new=1',
-    label: 'New issue',
+    label: 'New delivery',
     hint: 'Equipment going out',
     icon: (
       <path d="M4 17V7a1 1 0 0 1 1-1h9v11H4zm10 0h3.5L20 13.5V10h-6v7zm-8.5 3.5A1.75 1.75 0 1 0 5.5 17a1.75 1.75 0 0 0 0 3.5zm11 0A1.75 1.75 0 1 0 16.5 17a1.75 1.75 0 0 0 0 3.5z" />
@@ -45,9 +45,31 @@ const ACTIONS = [
   },
 ] as const;
 
+/**
+ * The action the screen you are on is *about*, promoted to the front of the
+ * sheet — and dropped from it where it would only send you back where you are.
+ *
+ * On /issue the first thing offered is a new delivery; on /return, a return; on
+ * a customer, a new site for that customer. A menu that reads the same on every
+ * screen makes you hunt on all of them.
+ */
+function actionsFor(pathname: string): Array<(typeof ACTIONS)[number]> {
+  const lead = ACTIONS.find((action) => {
+    if (pathname.startsWith('/issue')) return action.href.startsWith('/issue');
+    if (pathname.startsWith('/return')) return action.href.startsWith('/return');
+    if (pathname.startsWith('/payments')) return action.href.startsWith('/payments');
+    if (pathname.startsWith('/customers')) return action.href.startsWith('/customers');
+    return false;
+  });
+
+  if (!lead) return [...ACTIONS];
+  return [lead, ...ACTIONS.filter((action) => action !== lead)];
+}
+
 export function Fab() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const actions = actionsFor(pathname);
 
   // Navigating from a menu tap must dismiss the sheet. Keyed off the pathname
   // rather than closed in an effect: setting state from an effect makes React
@@ -67,7 +89,7 @@ export function Fab() {
               onClick={() => setOpen(false)}
             />
             <ul className="pointer-events-auto absolute bottom-16 right-0 z-20 w-64 overflow-hidden rounded-2xl border border-rule bg-card shadow-xl">
-              {ACTIONS.map((action) => (
+              {actions.map((action) => (
                 <li key={action.href} className="border-b border-rule last:border-b-0">
                   <Link href={action.href} className="tap flex items-center gap-3 px-4 py-3 hover:bg-paper">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-steel-soft text-steel">
