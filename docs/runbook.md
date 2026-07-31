@@ -25,29 +25,40 @@ Nothing in this project needs Docker, a local Postgres, or a paid service.
 
 Three git branches, each mapping to one environment:
 
+Three git branches, each mapping to one environment. **`main` is the live yard.**
+
 | Branch | Environment | Database | Who breaks it |
 |---|---|---|---|
-| `main` | Preview deploys | Neon `dev` branch | You, constantly. That is what it is for. |
-| `staging` | staging.yourdomain | Neon `staging` branch | Nobody except a promotion from `main` |
-| `production` | The yard's real URL | Neon `production` branch (primary) | Nobody except a promotion from `staging` |
+| `dev` | Preview deploys | Neon `dev` branch | You, constantly. That is what it is for. |
+| `staging` | staging.yourdomain | Neon `staging` branch | Nobody except a promotion from `dev` |
+| `main` | The yard's real URL | Neon `main` branch (primary) | Nobody except a promotion from `staging` |
 
-Work happens on `main` (or short-lived branches off it). Nothing is ever
-committed directly to `staging` or `production` — code only arrives there by
-being merged forward, so what the yard runs is always something that already
-survived staging.
+Work happens on `dev` (or short-lived branches off it). Nothing is ever
+committed directly to `staging` or `main` — code only arrives there by being
+merged forward, so what the yard runs is always something that already survived
+staging.
 
 ```bash
-# Promote work to staging
-git checkout staging && git merge --ff-only main && git push
+# Day to day
+git checkout dev
+# …work, commit…
+git push
 
-# Promote staging to production, once the yard has used it for a day
-git checkout production && git merge --ff-only staging && git push
-git checkout main
+# Promote to staging
+git checkout staging && git merge --ff-only dev && git push
+
+# Promote to production, once the yard has used staging for a day
+git checkout main && git merge --ff-only staging && git push
+git checkout dev
 ```
 
 `--ff-only` is deliberate: if it refuses, the branches have diverged, which
-means somebody committed straight to staging or production. Find out why before
+means somebody committed straight to `staging` or `main`. Find out why before
 forcing it.
+
+> `main` being the production branch is the one thing to keep in your head here.
+> A habit of typing `git checkout main` before starting work — which is right in
+> most repos — puts you on the yard's live branch in this one. Start on `dev`.
 
 ### 1a. Connect the repo to GitHub
 
@@ -55,12 +66,13 @@ The branches exist locally already. To push them:
 
 ```bash
 gh repo create bismi-rental --private --source=. --remote=origin
-git push -u origin main staging production
+git push -u origin main staging dev
 ```
 
-Then in GitHub → Settings → Branches, protect `staging` and `production`:
-require the CI check to pass, and disallow force pushes. `.github/workflows/ci.yml`
-runs typecheck, lint, 196 tests, and a build on every push and PR.
+Then in GitHub → Settings → Branches, protect `main` and `staging`: require the
+CI check to pass, and disallow force pushes. Protect `main` hardest — it is the
+yard. `.github/workflows/ci.yml` runs typecheck, lint, 196 tests, and a build on
+every push and PR.
 
 ---
 
@@ -72,10 +84,13 @@ whenever you want a realistic test.
 
 1. **Create the project.** Region: `ap-southeast-1` (Singapore) — the closest to
    Kerala on the free tier.
-2. The default branch becomes **`production`** (rename it if Neon called it
-   `main`, to match the git branch).
+2. Neon's default branch is **`main`**. Leave the name alone: it matches the git
+   branch, and both hold the real yard. Nothing else touches it.
 3. Create a child branch **`staging`** from it.
 4. Create a child branch **`dev`** from it, for local work and preview deploys.
+
+So the naming lines up end to end — git `main` → Neon `main` → the yard's URL;
+git `dev` → Neon `dev` → your laptop.
 
 For each branch, copy **two** connection strings from the Neon dashboard:
 
@@ -148,11 +163,15 @@ and that failure is silent.
 For each of the two projects:
 
 1. **New Project** → import the GitHub repo.
-2. **Settings → Git → Production Branch**: `staging` for the staging project,
-   `production` for the production one.
+2. **Settings → Git → Production Branch**: `main` for the production project,
+   `staging` for the staging one.
 3. **Settings → Git → Ignored Build Step** on the staging project, so it does
-   not also build `production` commits:
+   not also build `main` and `dev` commits:
    `if [ "$VERCEL_GIT_COMMIT_REF" != "staging" ]; then exit 0; fi`
+
+   And on the production project, so a `dev` push never triggers a build against
+   the yard's project at all:
+   `if [ "$VERCEL_GIT_COMMIT_REF" != "main" ]; then exit 0; fi`
 4. **Settings → Environment Variables** — from that environment's Neon branch:
 
    ```
@@ -168,8 +187,9 @@ For each of the two projects:
 
 5. Region: **Singapore (`sin1`)**, matching Neon.
 
-Preview deploys from `main` should point at the Neon `dev` branch — set those
-variables in the staging project's *Preview* scope.
+Preview deploys from `dev` should point at the Neon `dev` branch — set those
+variables in the staging project's *Preview* scope, and remove the ignored-build
+override there if you want previews on every `dev` push.
 
 ### Migrations on deploy
 
@@ -178,7 +198,14 @@ the environment's **unpooled** URL, *before* promoting the code that needs them:
 
 ```bash
 DATABASE_URL_UNPOOLED='<staging direct string>' pnpm db:migrate
-git checkout staging && git merge --ff-only main && git push
+git checkout staging && git merge --ff-only dev && git push
+```
+
+Same shape when promoting to the yard, with the Neon `main` string:
+
+```bash
+DATABASE_URL_UNPOOLED='<production direct string>' pnpm db:migrate
+git checkout main && git merge --ff-only staging && git push
 ```
 
 Every migration so far is additive (new columns with defaults), so applying
