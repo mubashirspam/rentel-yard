@@ -337,6 +337,7 @@ figures are worked out by hand in a comment above the assertion:
                                             Rent       ₹7,080
  Damaged: Jack 3.0m × 4 @ ₹450               Damages   ₹1,800
                                              Due       ₹8,880
+                                             
 ```
 
 A criterion checked by hand once is checked once. This one runs on every push.
@@ -548,6 +549,85 @@ M7 territory.
 but `/s/[token]` does not until M6, so the statement template omits the line
 rather than sending contractors to a 404. `statementMessage` already takes a
 `portalUrl`; M6 passes it.
+
+---
+
+## First contact with a real database
+
+Two bugs that every test passed over, found within minutes of pointing the app
+at Neon for the first time. Both are the same shape: code that was never
+executed against a real Postgres, only reasoned about.
+
+### D49. `disableSignUp` blocked the server too — no staff login could ever be created
+
+`emailAndPassword.disableSignUp: true` was set to satisfy §05.1's "no
+self-signup". It does not disable a *route*; it disables the **operation**, so
+it equally rejected `auth.api.signUpEmail()` called server-side — which is the
+call behind both `createUser` (the `/users` screen, an M2 acceptance item) and
+the seed script.
+
+The result: **no user could be created by any means.** The seed failed on its
+first run against Neon with `EMAIL_PASSWORD_SIGN_UP_DISABLED`, which is also
+what `/api/users` would have returned to a super_admin trying to add staff.
+
+Sign-up is now enabled in the config and the *public path* is closed instead:
+`isPublicSignUpAttempt()` (`lib/auth/public-signup.ts`) makes
+`POST /api/auth/sign-up/**` a 404 — not a 403, which would confirm the endpoint
+exists. Server-side calls never traverse that route, so the one code path that
+hashes passwords stays the one that verifies them.
+
+`orgId` had to become `input: true` as a consequence: `users.org_id` is NOT
+NULL, so Better Auth's insert cannot omit it and have it patched in afterwards.
+`role` and `isActive` stay `input: false`, so even a reachable sign-up could not
+mint a super_admin. `createUser` always passes the session's own org, never the
+caller's.
+
+### D50. `.partial()` does not strip a Zod default — PATCH was overwriting untouched columns
+
+`updateItemSchema` was `createItemSchema.partial()`. In Zod v4 that makes keys
+optional but **leaves `.default()` in place**, so:
+
+```ts
+updateItemSchema.parse({ ratePerDay: 500 })
+// → { ratePerDay: 500, unit: 'nos', replacementRate: 0, purchaseCost: 0,
+//     qtyOwned: 0, sortOrder: 0 }
+```
+
+`updateItem` writes every key it is given. So editing one item's rate on
+`/items` silently zeroed its replacement rate, its purchase cost, and the
+quantity the yard owns, and reset its sort order. `updateCustomerSchema` had the
+same defect: correcting a spelling in a contractor's name would have reset their
+agreed credit limit to zero.
+
+Both schemas are now built from a `…Fields` base carrying no defaults, with
+defaults added only on the create variant. `lib/validation/partial-updates.test.ts`
+asserts that a partial parse returns exactly the keys it was given — including
+that an explicit `0` still comes through, so retiring stock still works.
+
+**This was found in the data, not in a test.** Two item rows in the first Neon
+database came back with a `server_seq` far ahead of their siblings — the bump
+trigger from D17, doing precisely the job it was added for. Without that column
+the corruption would have been silent and indistinguishable from a bad seed.
+
+The two affected rows are still wrong in that database; the fix stops it
+recurring but does not reach back. Correct them on `/items`, or:
+
+```sql
+update items set rate_per_day = 200, replacement_rate = 45000,
+       purchase_cost = 38000, qty_owned = 600, sort_order = 0 where code = 'JCK30';
+update items set rate_per_day = 250, replacement_rate = 52000,
+       purchase_cost = 44000, qty_owned = 400, sort_order = 1 where code = 'JCK36';
+```
+
+### The lesson, for M5 onward
+
+Both bugs sat behind 196 passing tests, a clean typecheck, and a successful
+build. Neither could have been caught by any of them: one needed a real Better
+Auth runtime, the other needed a real `UPDATE` against a real row. The PGlite
+harness covers the SQL, but not the third-party runtime above it.
+
+Point each milestone at a live database and click through it **before** calling
+it done, not after.
 
 ---
 

@@ -36,7 +36,16 @@ function build() {
     user: {
       modelName: 'users',
       additionalFields: {
-        orgId: { type: 'string', required: true, input: false },
+        // `org_id` is NOT NULL, so it has to be supplied at creation — Better
+        // Auth's insert cannot leave it out and then have it patched in. It is
+        // therefore the one additional field accepted as input; the public
+        // sign-up route is a 404, so the only callers are `createUser` (behind
+        // `user.manage`) and the seed script.
+        orgId: { type: 'string', required: true, input: true },
+        // The privilege-bearing fields stay unsettable from any payload. Even
+        // if a sign-up call were ever reachable, it could not mint a
+        // super_admin: `createUser` assigns the role afterwards, inside the
+        // guard.
         role: { type: 'string', required: true, input: false, defaultValue: 'admin' },
         isActive: { type: 'boolean', required: true, input: false, defaultValue: true },
       },
@@ -47,9 +56,11 @@ function build() {
 
     emailAndPassword: {
       enabled: true,
-      // No self-signup (§05.1). Users are created by a super_admin through
-      // /api/users, which calls the server-side sign-up API directly.
-      disableSignUp: true,
+      // NOT `disableSignUp: true`. That rejects the operation rather than the
+      // route, so it also blocks `auth.api.signUpEmail()` — the call that
+      // /api/users and the seed script use to create staff. §05.1's "no
+      // self-signup" is enforced on the public path instead, in
+      // `public-signup.ts`, which the auth route consults before handing over.
       minPasswordLength: 10,
     },
 

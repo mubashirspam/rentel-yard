@@ -69,6 +69,9 @@ export async function createUser(
       email: input.email,
       password: input.password,
       name: input.name,
+      // Never from the caller — always the session's own org, so a staff login
+      // cannot be created inside somebody else's yard.
+      orgId: session.orgId,
     },
   });
 
@@ -76,8 +79,8 @@ export async function createUser(
     throw new LedgerError(ERROR_CODES.CONFLICT, 'Could not create that user.', { field: 'email' });
   }
 
-  // `orgId` and `role` are `input: false` on the Better Auth model, so they
-  // cannot be set through sign-up. Assign them here, inside the guarded path.
+  // `role` and `isActive` are `input: false`, so sign-up cannot set them. The
+  // role is assigned here, inside the `user.manage` guard.
   const [row] = await database
     .update(schema.users)
     .set({ orgId: session.orgId, role: input.role, isActive: true })

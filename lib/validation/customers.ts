@@ -2,20 +2,29 @@ import { z } from 'zod';
 
 import { longText, mobile, paise, shortText } from './common';
 
-export const createCustomerSchema = z.object({
+/**
+ * No defaults here — see the note in `items.ts`. `.partial()` leaves Zod
+ * defaults intact, so a PATCH carrying only a corrected spelling of a name
+ * would have reset the contractor's agreed credit limit to zero.
+ */
+const customerFields = z.object({
   name: shortText,
   mobile,
   altMobile: mobile.optional().nullable(),
   address: longText.optional().nullable(),
   idProofUrl: z.url().optional().nullable(),
   /** Paise. 0 means no limit. */
-  creditLimit: paise.default(0),
+  creditLimit: paise,
   notes: longText.optional().nullable(),
+});
+
+export const createCustomerSchema = customerFields.extend({
+  creditLimit: paise.default(0),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 
-export const updateCustomerSchema = createCustomerSchema.partial().extend({
+export const updateCustomerSchema = customerFields.partial().extend({
   isBlocked: z.boolean().optional(),
 });
 

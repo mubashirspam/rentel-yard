@@ -104,7 +104,7 @@ async function main() {
     console.log(`User ${ADMIN_EMAIL} already exists`);
   } else {
     const created = await auth().api.signUpEmail({
-      body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: ADMIN_NAME },
+      body: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD, name: ADMIN_NAME, orgId: org.id },
     });
 
     if (!created?.user?.id) throw new Error('Better Auth did not create the seed user.');

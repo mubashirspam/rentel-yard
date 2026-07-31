@@ -1,6 +1,7 @@
 import { toNextJsHandler } from 'better-auth/next-js';
 
 import { auth } from '@/lib/auth/auth';
+import { isPublicSignUpAttempt } from '@/lib/auth/public-signup';
 
 // Better Auth needs the Node runtime — it hashes passwords with scrypt.
 export const runtime = 'nodejs';
@@ -23,5 +24,12 @@ export function GET(request: Request) {
 }
 
 export function POST(request: Request) {
+  // §05.1: customers never log in and staff are created by a super_admin, so
+  // the public sign-up endpoint does not exist as far as the internet is
+  // concerned. 404 rather than 403 — a 403 confirms the route is there.
+  if (isPublicSignUpAttempt(request)) {
+    return Promise.resolve(new Response('Not found', { status: 404 }));
+  }
+
   return resolve().POST(request);
 }
