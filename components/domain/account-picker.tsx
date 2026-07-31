@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import type { AccountListRow } from '@/lib/accounts/service';
 import { getJson, postJson } from '@/lib/api/client';
+import { mirrorAccounts } from '@/lib/sync/queries';
 import { formatDays } from '@/lib/format';
 
 import { Button, FormError, TextInput } from '../ui/field';
@@ -29,6 +30,7 @@ export function AccountPicker({
 }) {
   const [accounts, setAccounts] = useState<AccountListRow[] | null>(null);
   const [creating, setCreating] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -41,8 +43,41 @@ export function AccountPicker({
         // Straight to the site form when there is nothing to choose between.
         if (payload.accounts.length === 0) setCreating(true);
       })
-      .catch((failure: Error) => {
-        if (!cancelled) setError(failure.message);
+      .catch(async (failure: Error & { code?: string }) => {
+        if (cancelled) return;
+
+        // No signal: the device's own list of open sites. Balances and days
+        // open are server-derived, so they are left at zero rather than
+        // guessed — the picker exists to choose a site, not to quote a figure.
+        if (failure.code === 'OFFLINE') {
+          const local = await mirrorAccounts(customerId);
+          if (cancelled) return;
+
+          setAccounts(
+            local.map((account) => ({
+              id: account.id,
+              orgId: '',
+              customerId: account.customerId,
+              siteName: account.siteName,
+              siteAddress: null,
+              status: account.status,
+              openedOn: account.openedOn,
+              closedOn: null,
+              customerName: account.customerName,
+              customerMobile: account.customerMobile,
+              balance: 0,
+              qtyOut: 0,
+              daysOpen: 0,
+              accruedRent: 0,
+              perDay: 0,
+            })),
+          );
+          setOffline(true);
+          if (local.length === 0) setCreating(true);
+          return;
+        }
+
+        setError(failure.message);
       });
 
     return () => {
@@ -57,6 +92,12 @@ export function AccountPicker({
   return (
     <div>
       <FormError>{error}</FormError>
+
+      {offline && (
+        <p className="mb-3 text-sm text-amber">
+          No signal — showing the sites saved on this phone.
+        </p>
+      )}
 
       {accounts && accounts.length > 0 && (
         <Card className="mb-3">

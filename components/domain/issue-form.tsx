@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 
 import { newClientUuid } from '@/lib/api/client';
+import { mirrorStock } from '@/lib/sync/queries';
 import { submitOrQueue } from '@/lib/sync/submit';
 import type { CustomerSummary } from '@/lib/customers/service';
 import { formatDayFull, formatMobile, waHref } from '@/lib/format';
@@ -46,7 +48,7 @@ interface Committed extends BatchResponse {
 }
 
 export function IssueForm({
-  items,
+  items: serverItems,
   today,
   initialTarget,
 }: {
@@ -55,6 +57,20 @@ export function IssueForm({
   /** Set when the flow was entered from an account screen. */
   initialTarget?: IssueTarget;
 }) {
+  /*
+   * The item list comes from the server when there is one. With no signal the
+   * page arrives from the service worker cache with an empty list, and the same
+   * shape is recomputed from the device's mirror instead — same `StockRow`, same
+   * component, no second code path.
+   */
+  const mirrored = useLiveQuery(
+    () => (serverItems.length === 0 ? mirrorStock() : Promise.resolve(undefined)),
+    [serverItems.length],
+  );
+  const items = useMemo(
+    () => (serverItems.length > 0 ? serverItems : (mirrored ?? [])),
+    [serverItems, mirrored],
+  );
   const [customer, setCustomer] = useState<{ id: string; name: string; mobile: string } | null>(
     initialTarget
       ? { id: '', name: initialTarget.customerName, mobile: initialTarget.customerMobile }

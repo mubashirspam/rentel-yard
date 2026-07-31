@@ -1,11 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import type { OutstandingLine } from '@/lib/accounts/service';
 import { newClientUuid } from '@/lib/api/client';
+import { mirrorOutstanding } from '@/lib/sync/queries';
 import { submitOrQueue } from '@/lib/sync/submit';
 import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 
@@ -70,7 +72,7 @@ export function ReturnSheet({
   accountId,
   siteName,
   customerName,
-  outstanding,
+  outstanding: serverOutstanding,
   today,
   focusItemId,
 }: {
@@ -84,9 +86,34 @@ export function ReturnSheet({
 }) {
   const router = useRouter();
 
+  /*
+   * With no signal the page comes from the service worker cache with nothing in
+   * it, and the outstanding quantities are replayed from the device's mirror by
+   * the same pure engine the server uses. Those quantities are what the return
+   * is checked against locally — and the server checks them again when the
+   * queue lands, which is why an over-return is a "needs attention" row rather
+   * than a silent overwrite.
+   */
+  const mirrored = useLiveQuery(
+    () =>
+      serverOutstanding.length === 0
+        ? mirrorOutstanding(accountId, today)
+        : Promise.resolve(undefined),
+    [accountId, today, serverOutstanding.length],
+  );
+  const outstanding = useMemo(
+    () => (serverOutstanding.length > 0 ? serverOutstanding : (mirrored ?? [])),
+    [serverOutstanding, mirrored],
+  );
+
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     focusItemId
-      ? { [focusItemId]: { qty: outstanding.find((l) => l.itemId === focusItemId)?.qtyOut ?? 0, condition: 'RETURN' } }
+      ? {
+          [focusItemId]: {
+            qty: serverOutstanding.find((line) => line.itemId === focusItemId)?.qtyOut ?? 0,
+            condition: 'RETURN',
+          },
+        }
       : {},
   );
   const [movedAt, setMovedAt] = useState(today);

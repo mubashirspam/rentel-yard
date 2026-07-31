@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { getJson, postJson } from '@/lib/api/client';
+import { mirrorCustomers } from '@/lib/sync/queries';
 import type { CustomerSummary } from '@/lib/customers/service';
 import { formatMobile } from '@/lib/format';
 
@@ -21,6 +22,7 @@ export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary)
   const [results, setResults] = useState<CustomerSummary[]>([]);
   const [searched, setSearched] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -36,7 +38,28 @@ export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary)
       setResults(payload.customers);
       setSearched(true);
     } catch (failure) {
-      setError((failure as Error).message);
+      // With no signal, search the device's own copy. Balances are not in the
+      // mirror, so those columns read zero — the picker only needs a name and a
+      // number, and inventing a balance would be worse than omitting one.
+      const offline = (failure as { code?: string }).code === 'OFFLINE';
+      const local = offline ? await mirrorCustomers(query) : [];
+
+      if (offline && local.length > 0) {
+        setResults(
+          local.map((row) => ({
+            ...row,
+            creditLimit: 0,
+            openAccounts: 0,
+            balance: 0,
+            qtyOut: 0,
+            overCreditLimit: false,
+          })),
+        );
+        setSearched(true);
+        setOffline(true);
+      } else {
+        setError((failure as Error).message);
+      }
     } finally {
       setBusy(false);
     }
@@ -59,6 +82,12 @@ export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary)
       </form>
 
       <FormError>{error}</FormError>
+
+      {offline && (
+        <p className="mb-3 text-sm text-amber">
+          No signal — searching this phone&apos;s copy. Balances are not shown offline.
+        </p>
+      )}
 
       {results.length > 0 && (
         <Card className="mb-3">

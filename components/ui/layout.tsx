@@ -10,6 +10,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { Fab } from './fab';
+import { SyncBoot } from './sync-boot';
 import { SyncChip } from './sync-chip';
 import { TabBar } from './tab-bar';
 
@@ -23,6 +24,7 @@ export function Screen({ children, nav = true }: { children: ReactNode; nav?: bo
       {/* §07.5: the sync state is persistent and on every screen, because the
           question "did that gate pass actually leave the phone?" has to be
           answerable without going looking. */}
+      <SyncBoot />
       <div className="mx-auto flex w-full max-w-2xl justify-end px-4 pt-3">
         <SyncChip />
       </div>

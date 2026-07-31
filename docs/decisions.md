@@ -618,6 +618,44 @@ means client-rendering the issue and return screens from the mirror, which is a
 day's work and should not be smuggled in under a milestone that claims to be
 done.
 
+### D55a. The read path, closed as far as it honestly can be
+
+D55 said the screens were server-rendered only. That is now half-fixed, and the
+remaining half is a genuine limit rather than an oversight.
+
+`lib/sync/queries.ts` returns the **same shapes** the server returns —
+`StockRow`, `OutstandingLine` — computed from the mirror by the same pure engine
+(`lib/accrual` imports nothing that touches a network or a clock, so it runs
+identically on a phone). `IssueForm`, `ReturnSheet`, and both pickers take
+server data when there is any and fall back to the mirror when there is not.
+One set of components, not an online set and an offline set that drift.
+
+What that buys, concretely: a screen visited once today is in the service
+worker's page cache, so opening `/issue` or `/return` with no signal works, and
+the item list and outstanding quantities are recomputed locally rather than
+being whatever was cached hours ago.
+
+What it does not buy: a *cold* start on a phone that has never opened that
+route. Those pages are `force-dynamic`, so there is no HTML to precache.
+Fixing that means converting them to static shells that fetch on mount —
+a real change to two working screens, and not one to make blind at the end of
+a session.
+
+Balances are deliberately **not** shown offline. The mirror carries movements,
+not payments and adjustments, so the pickers show a name and a site with the
+money columns at zero rather than a figure that might be wrong. A number a
+contractor could be quoted must not be a guess.
+
+### D55b. The device duplicates `v_item_stock`, and a test pins the duplicate
+
+Availability cannot travel — it is a database view — so `lib/sync/availability.ts`
+recomputes `owned − lost − out` on the phone. That duplication is a real risk:
+drift between the two means an admin offline sees one number and the same admin
+online sees another, with no way to tell which is wrong.
+
+`availability.test.ts` runs the same movements through both — the function and
+`v_item_stock` on a real Postgres — and insists they agree, reversals and all.
+
 ### D56. `next build --webpack`
 
 Next 16 defaults to Turbopack, which silently skips `@serwist/next`'s webpack

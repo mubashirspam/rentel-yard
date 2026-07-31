@@ -41,7 +41,7 @@ pnpm dev
 Checks:
 
 ```bash
-pnpm test        # 218 tests, incl. Postgres-backed schema and lifecycle tests
+pnpm test        # 225 tests, incl. Postgres-backed schema and lifecycle tests
 pnpm typecheck
 pnpm lint
 ```
@@ -81,7 +81,7 @@ same `resolvePortalToken`:
 | M2 | Schema & auth | ✅ schema, migrations, roles, portal tokens |
 | M3 | Core ledger, online only | ✅ CRUD, issue & return flows, account screen, stock |
 | M4 | Money — bills & payments | ✅ bills, PDFs, payments, allocation, WhatsApp |
-| M5 | Offline layer | ◑ writes queue and sync exactly once; offline *reads* pending |
+| M5 | Offline layer | ◑ writes queue and land once; reads work on a visited screen |
 | M6 | Customer portal | not started |
 | M7 | Reports & polish | not started |
 
@@ -160,10 +160,13 @@ built, and what is not, stated plainly:
   refusal appears under *Needs attention* on `/sync` with the reason.
 - **Nothing stale is passed off as current.** `/api/*` is never served from a
   cache; the status chip and `/sync` say how old the mirror is.
-- **Not yet: offline reads.** Every screen is still server-rendered, so a cold
-  start with no signal reaches the offline page rather than a working account
-  screen. The mirror and cursor pull exist and are tested — nothing renders from
-  them yet. See D55.
+- **Reads come from the device.** Items, availability, open sites, and what a
+  site still holds are recomputed on the phone by the same pure engine the
+  server uses, so `/issue` and `/return` work with no signal — and a test pins
+  the device's availability arithmetic to `v_item_stock` so the two cannot
+  drift. Balances are left blank offline rather than guessed.
+- **The limit:** those routes are server-rendered, so a screen never visited on
+  this phone has no cached shell and reaches the offline page instead. See D55a.
 
 ## Ledger integrity
 
