@@ -8,7 +8,7 @@ import { newClientUuid } from '@/lib/api/client';
 import { mirrorStock } from '@/lib/sync/queries';
 import { submitOrQueue } from '@/lib/sync/submit';
 import type { CustomerSummary } from '@/lib/customers/service';
-import { formatDayFull, formatMobile, waHref } from '@/lib/format';
+import { formatDay, formatDayFull, formatDays, formatMobile, waHref } from '@/lib/format';
 import type { StockRow } from '@/lib/stock/service';
 
 import { Button, FormError, TextInput } from '../ui/field';
@@ -31,6 +31,17 @@ export interface IssueTarget {
   siteName: string;
   customerName: string;
   customerMobile: string;
+  /** What the site already holds, when the flow was entered from an account. */
+  outstanding?: Array<{
+    itemName: string;
+    qtyOut: number;
+    unit: string;
+    since: string;
+    daysHeld: number;
+    accruingPerDay: number;
+  }>;
+  balance?: number;
+  openedOn?: string;
 }
 
 /** What §06 `POST /api/movements` answers with. */
@@ -207,6 +218,39 @@ export function IssueForm({
         onChange={initialTarget ? undefined : () => setTarget(null)}
       />
 
+      {target.outstanding && target.outstanding.length > 0 && (
+        <>
+          <SectionTitle tone="amber">Already on this site</SectionTitle>
+          <Card>
+            <ul className="divide-y divide-rule">
+              {target.outstanding.map((line) => (
+                <li key={line.itemName} className="px-4 py-2.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="font-medium">{line.itemName}</span>
+                    <span className="font-semibold">
+                      <Qty qty={line.qtyOut} unit={line.unit} />
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <Chip>since {formatDay(line.since)}</Chip>
+                    <Chip>{formatDays(line.daysHeld)}</Chip>
+                    <Chip tone="amber">
+                      <Money paise={line.accruingPerDay} paiseDigits />
+                      /day
+                    </Chip>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {target.balance !== undefined && (
+              <p className="border-t border-rule px-4 py-2 text-sm text-ink-2">
+                Balance on this site <Money paise={target.balance} className="font-semibold" />
+              </p>
+            )}
+          </Card>
+        </>
+      )}
+
       <FormError>{error}</FormError>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -241,29 +285,52 @@ export function IssueForm({
 
       <Card>
         <ul className="divide-y divide-rule">
-          {visible.map((item) => (
-            <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{item.name}</p>
-                <p className="text-sm text-ink-2">
-                  <Money paise={item.ratePerDay} paiseDigits />
-                  /day ·{' '}
-                  {item.qtyAvailable > 0 ? (
-                    <span className={item.isLow ? 'font-medium text-amber' : 'font-medium text-green'}>
-                      <Qty qty={item.qtyAvailable} /> available
-                    </span>
-                  ) : (
-                    <span className="font-medium text-red">none available</span>
-                  )}
-                </p>
-              </div>
-              <QtyStepper
-                label={item.name}
-                value={quantities[item.id] ?? 0}
-                onChange={(qty) => setQuantities((all) => ({ ...all, [item.id]: qty }))}
-              />
-            </li>
-          ))}
+          {visible.map((item) => {
+            const qty = quantities[item.id] ?? 0;
+
+            return (
+              <li
+                key={item.id}
+                className={`flex items-center justify-between gap-3 px-3 py-2.5 ${
+                  qty > 0 ? 'bg-steel-soft/40' : ''
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{item.name}</p>
+
+                  {/* Rate and availability as chips: the two facts that decide
+                      whether this item goes on the lorry, and how much it will
+                      cost a day once it does. */}
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <Chip tone="steel">
+                      <Money paise={item.ratePerDay} paiseDigits />
+                      /day
+                    </Chip>
+                    {item.qtyAvailable > 0 ? (
+                      <Chip tone={item.isLow ? 'amber' : 'green'}>
+                        <Qty qty={item.qtyAvailable} /> available
+                      </Chip>
+                    ) : (
+                      <Chip tone="red">none available</Chip>
+                    )}
+                    {item.code && <Chip>{item.code}</Chip>}
+                    {qty > 0 && (
+                      <Chip tone="steel">
+                        <Money paise={qty * item.ratePerDay} paiseDigits />
+                        /day added
+                      </Chip>
+                    )}
+                  </div>
+                </div>
+
+                <QtyStepper
+                  label={item.name}
+                  value={qty}
+                  onChange={(next) => setQuantities((all) => ({ ...all, [item.id]: next }))}
+                />
+              </li>
+            );
+          })}
         </ul>
       </Card>
 

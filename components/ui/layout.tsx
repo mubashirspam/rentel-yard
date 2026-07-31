@@ -39,34 +39,56 @@ export function Screen({ children, nav = true }: { children: ReactNode; nav?: bo
   );
 }
 
+const ACCENT = {
+  neutral: 'bg-ink-3',
+  steel: 'bg-steel',
+  green: 'bg-green',
+  amber: 'bg-amber',
+  red: 'bg-red',
+} as const;
+
+/**
+ * The heading of every screen, as a card.
+ *
+ * It was floating text over the page background, which made a screen start with
+ * nothing and left the back link, the title and the action visually unrelated.
+ * A card gives the header an edge, so the eye finds where it starts, and lets
+ * the action sit inside it rather than beside it.
+ */
 export function PageHeader({
   title,
   subtitle,
   back,
   action,
+  tone = 'steel',
 }: {
   title: string;
   subtitle?: ReactNode;
   /** Where the back link goes. Omit on a tab-bar destination. */
   back?: { href: string; label: string };
   action?: ReactNode;
+  tone?: keyof typeof ACCENT;
 }) {
   return (
-    <header className="mb-5">
+    <Card className="mb-4 overflow-hidden">
       {back && (
-        <Link href={back.href} className="mb-2 inline-flex text-sm font-medium text-steel">
+        <Link
+          href={back.href}
+          className="tap flex items-center gap-1 border-b border-rule px-4 text-sm font-semibold text-steel hover:bg-paper"
+        >
           ← {back.label}
         </Link>
       )}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <span aria-hidden className="mb-2 block h-1 w-10 rounded-full bg-steel" />
+
+      <div className="flex items-start justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <span aria-hidden className={`mb-2 block h-1 w-10 rounded-full ${ACCENT[tone]}`} />
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-2">{subtitle}</p>}
         </div>
-        {action}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
-    </header>
+    </Card>
   );
 }
 
@@ -78,14 +100,6 @@ export function PageHeader({
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`rounded-2xl border border-rule bg-card ${className}`}>{children}</div>;
 }
-
-const ACCENT = {
-  neutral: 'bg-ink-3',
-  steel: 'bg-steel',
-  green: 'bg-green',
-  amber: 'bg-amber',
-  red: 'bg-red',
-} as const;
 
 /**
  * A section heading with a coloured rule.

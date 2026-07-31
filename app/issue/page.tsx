@@ -190,5 +190,17 @@ async function findTarget(
     siteName: detail.account.siteName,
     customerName: detail.customer.name,
     customerMobile: detail.customer.mobile,
+    // What is already on this site. Delivering more without seeing it is how a
+    // yard sends a second load of jacks to a site that has forty sitting idle.
+    outstanding: detail.outstanding.map((line) => ({
+      itemName: line.itemName,
+      qtyOut: line.qtyOut,
+      unit: line.unit,
+      since: line.since,
+      daysHeld: line.daysHeld,
+      accruingPerDay: line.accruingPerDay,
+    })),
+    balance: detail.balance.balance,
+    openedOn: detail.account.openedOn,
   };
 }
