@@ -14,52 +14,70 @@ import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 import { Button, FormError, TextInput } from '../ui/field';
 import { Card, Chip, SectionTitle } from '../ui/layout';
 import { Money, Qty } from '../ui/money';
-import { QtyStepper } from '../ui/stepper';
 
 /**
- * §08.3 fast return — the outstanding list with a quantity coming back against
- * each row.
+ * §08.3 fast return — the outstanding list with what has come back against each
+ * row.
  *
- * Condition is per line: good, damaged, or lost. The ledger has a movement type
- * for each and they price differently (§02), so a lorry arriving with 40 good
- * jacks and 4 broken ones is **two gate passes**, committed one after the other.
- * That is deliberate: a batch is atomic (§14), and merging the two would mean a
- * rejected damaged line silently discarding the good return the contractor just
- * watched being counted.
+ * **One item splits three ways.** A lorry arrives with 42 jacks: 40 fine, one
+ * bent, one never found. That is one row carrying three quantities, not a row
+ * with a single condition — the earlier version forced the whole line to be
+ * either good *or* damaged, so a split meant recording the same item twice and
+ * hoping the quantities added up.
+ *
+ * The ledger has a movement type for each (§02) and they price differently, so
+ * the three become up to three gate passes, committed one after another. That
+ * is deliberate: a batch is atomic (§14), and merging them would let a rejected
+ * damaged line silently discard the good return the contractor just watched
+ * being counted.
+ *
+ * Quantities start filled to what is out, because the common case in a yard is
+ * "everything is back". Adjusting one down beats counting all of them up.
  */
 
 type Condition = 'RETURN' | 'RETURN_DAMAGED' | 'LOST';
 
+interface Draft {
+  good: number;
+  damaged: number;
+  lost: number;
+}
+
+const EMPTY: Draft = { good: 0, damaged: 0, lost: 0 };
+
 const CONDITIONS: Array<{
-  value: Condition;
+  key: keyof Draft;
+  type: Condition;
   label: string;
   hint: string;
-  activeClass: string;
+  tone: string;
+  ring: string;
 }> = [
   {
-    value: 'RETURN',
+    key: 'good',
+    type: 'RETURN',
     label: 'Good',
-    hint: 'Back in the yard, rent stops',
-    activeClass: 'border-green bg-green-soft text-green',
+    hint: 'Back on the racks — rent stops',
+    tone: 'text-green',
+    ring: 'bg-green-soft',
   },
   {
-    value: 'RETURN_DAMAGED',
+    key: 'damaged',
+    type: 'RETURN_DAMAGED',
     label: 'Damaged',
-    hint: 'Charged at the replacement rate',
-    activeClass: 'border-amber bg-amber-soft text-amber',
+    hint: 'Back, but charged at the replacement rate',
+    tone: 'text-amber',
+    ring: 'bg-amber-soft',
   },
   {
-    value: 'LOST',
+    key: 'lost',
+    type: 'LOST',
     label: 'Lost',
-    hint: 'Charged, and written off owned stock',
-    activeClass: 'border-red bg-red-soft text-red',
+    hint: 'Charged, and written off the yard’s stock',
+    tone: 'text-red',
+    ring: 'bg-red-soft',
   },
 ];
-
-interface Draft {
-  qty: number;
-  condition: Condition;
-}
 
 interface Receipt {
   gatePasses: string[];
@@ -67,6 +85,8 @@ interface Receipt {
   /** Held on the phone with no signal, waiting to be pushed (§07.5). */
   queued?: boolean;
 }
+
+const total = (draft: Draft) => draft.good + draft.damaged + draft.lost;
 
 export function ReturnSheet({
   accountId,
@@ -106,35 +126,63 @@ export function ReturnSheet({
     [serverOutstanding, mirrored],
   );
 
-  const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
-    focusItemId
-      ? {
-          [focusItemId]: {
-            qty: serverOutstanding.find((line) => line.itemId === focusItemId)?.qtyOut ?? 0,
-            condition: 'RETURN',
-          },
-        }
-      : {},
-  );
+  // Null until the admin touches something: the counts shown before that are
+  // derived from what is out, so they are right even when the outstanding list
+  // arrives late from the mirror.
+  const [drafts, setDrafts] = useState<Record<string, Draft> | null>(null);
   const [movedAt, setMovedAt] = useState(today);
   const [gatePassNo, setGatePassNo] = useState('');
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
+  const filled = useMemo(() => {
+    if (drafts) return drafts;
+
+    // Prefilled to "all of it, in good condition". Arriving from a tapped row
+    // on the account screen fills that item only.
+    return Object.fromEntries(
+      outstanding.map((line) => [
+        line.itemId,
+        !focusItemId || focusItemId === line.itemId
+          ? { ...EMPTY, good: line.qtyOut }
+          : { ...EMPTY },
+      ]),
+    );
+  }, [drafts, outstanding, focusItemId]);
+
   const chosen = useMemo(
     () =>
       outstanding
-        .map((line) => ({ line, draft: drafts[line.itemId] }))
-        .filter((entry): entry is { line: OutstandingLine; draft: Draft } => (entry.draft?.qty ?? 0) > 0),
-    [outstanding, drafts],
+        .map((line) => ({ line, draft: filled[line.itemId] ?? EMPTY }))
+        .filter((entry) => total(entry.draft) > 0),
+    [outstanding, filled],
   );
 
-  function update(itemId: string, patch: Partial<Draft>) {
-    setDrafts((all) => ({
-      ...all,
-      [itemId]: { ...(all[itemId] ?? { qty: 0, condition: 'RETURN' }), ...patch },
-    }));
+  const units = chosen.reduce((sum, entry) => sum + total(entry.draft), 0);
+  const damagedUnits = chosen.reduce((sum, entry) => sum + entry.draft.damaged, 0);
+  const lostUnits = chosen.reduce((sum, entry) => sum + entry.draft.lost, 0);
+
+  function set(itemId: string, key: keyof Draft, value: number, max: number) {
+    setDrafts((all) => {
+      const base = all ?? filled;
+      const current = base[itemId] ?? EMPTY;
+
+      // The three together can never exceed what is out. Capping against the
+      // room the other two leave means nudging one down frees the others up.
+      const others = total(current) - current[key];
+      const next = Math.max(0, Math.min(value, max - others));
+
+      return { ...base, [itemId]: { ...current, [key]: next } };
+    });
+  }
+
+  function fillAll(itemId: string, qtyOut: number) {
+    setDrafts((all) => ({ ...(all ?? filled), [itemId]: { ...EMPTY, good: qtyOut } }));
+  }
+
+  function clear(itemId: string) {
+    setDrafts((all) => ({ ...(all ?? filled), [itemId]: { ...EMPTY } }));
   }
 
   async function commit() {
@@ -142,8 +190,10 @@ export function ReturnSheet({
     setError(undefined);
 
     const groups = CONDITIONS.map((condition) => ({
-      type: condition.value,
-      entries: chosen.filter((entry) => entry.draft.condition === condition.value),
+      type: condition.type,
+      entries: chosen
+        .map((entry) => ({ line: entry.line, qty: entry.draft[condition.key] }))
+        .filter((entry) => entry.qty > 0),
     })).filter((group) => group.entries.length > 0);
 
     const gatePasses: string[] = [];
@@ -168,7 +218,7 @@ export function ReturnSheet({
           gatePassNo: number,
           lines: group.entries.map((entry) => ({
             itemId: entry.line.itemId,
-            qty: entry.draft.qty,
+            qty: entry.qty,
             clientUuid: newClientUuid(),
           })),
         };
@@ -183,7 +233,7 @@ export function ReturnSheet({
             payload,
           },
           `Returned ${group.entries
-            .map((entry) => `${entry.draft.qty} × ${entry.line.itemName}`)
+            .map((entry) => `${entry.qty} × ${entry.line.itemName}`)
             .join(', ')}`,
         );
 
@@ -193,7 +243,7 @@ export function ReturnSheet({
         for (const entry of group.entries) {
           recorded.push({
             name: entry.line.itemName,
-            qty: entry.draft.qty,
+            qty: entry.qty,
             unit: entry.line.unit,
             condition: group.type,
           });
@@ -258,13 +308,13 @@ export function ReturnSheet({
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={`/accounts/${accountId}`}
-            className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+            className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
           >
             Open the account
           </Link>
           <Link
             href="/return"
-            className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+            className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-semibold"
           >
             Another return
           </Link>
@@ -294,67 +344,98 @@ export function ReturnSheet({
         />
       </div>
 
-      <SectionTitle>What has come back?</SectionTitle>
+      <SectionTitle aside={<span className="text-sm text-ink-2">counts start filled</span>}>
+        What has come back?
+      </SectionTitle>
 
-      <Card>
-        <ul className="divide-y divide-rule">
-          {outstanding.map((line) => {
-            const draft = drafts[line.itemId];
-            return (
-              <li key={line.itemId} className="px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
+      <ul className="space-y-3">
+        {outstanding.map((line) => {
+          const draft = filled[line.itemId] ?? EMPTY;
+          const counted = total(draft);
+          const left = line.qtyOut - counted;
+
+          return (
+            <li key={line.itemId}>
+              <Card className="overflow-hidden">
+                <div className="flex items-start justify-between gap-3 border-b border-rule px-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium">{line.itemName}</p>
-                    <p className="text-sm text-ink-2">
-                      <Qty qty={line.qtyOut} unit={line.unit} /> out since {formatDay(line.since)} ·{' '}
-                      {formatDays(line.daysHeld)}
-                    </p>
+                    <p className="truncate font-semibold">{line.itemName}</p>
+
+                    {/* The facts a yard worker checks before counting: how many
+                        are out, since when, how long, and what it costs a day. */}
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <Chip tone="steel">
+                        <Qty qty={line.qtyOut} unit={line.unit} /> out
+                      </Chip>
+                      <Chip>since {formatDay(line.since)}</Chip>
+                      <Chip>{formatDays(line.daysHeld)}</Chip>
+                      <Chip>
+                        <Money paise={line.accruingPerDay} paiseDigits />
+                        /day
+                      </Chip>
+                    </div>
                   </div>
-                  <QtyStepper
-                    label={line.itemName}
-                    value={draft?.qty ?? 0}
-                    max={line.qtyOut}
-                    onChange={(qty) => update(line.itemId, { qty })}
-                    hint={`/ ${line.qtyOut}`}
-                  />
+
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => fillAll(line.itemId, line.qtyOut)}
+                      className="tap rounded-lg border border-rule px-2.5 text-xs font-semibold text-ink-2 hover:bg-paper"
+                    >
+                      All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clear(line.itemId)}
+                      className="tap rounded-lg border border-rule px-2.5 text-xs font-semibold text-ink-2 hover:bg-paper"
+                    >
+                      None
+                    </button>
+                  </div>
                 </div>
 
-                {(draft?.qty ?? 0) > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CONDITIONS.map((condition) => {
-                      const active = (draft?.condition ?? 'RETURN') === condition.value;
-                      return (
-                        <button
-                          key={condition.value}
-                          type="button"
-                          title={condition.hint}
-                          onClick={() => update(line.itemId, { condition: condition.value })}
-                          aria-pressed={active}
-                          className={`tap rounded-xl border px-3 text-sm font-semibold ${
-                            active ? condition.activeClass : 'border-rule bg-card text-ink-2'
-                          }`}
-                        >
-                          {condition.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
+                <div className="divide-y divide-rule">
+                  {CONDITIONS.map((condition) => (
+                    <ConditionRow
+                      key={condition.key}
+                      label={condition.label}
+                      hint={condition.hint}
+                      tone={condition.tone}
+                      ring={condition.ring}
+                      value={draft[condition.key]}
+                      canAdd={left > 0}
+                      onChange={(value) => set(line.itemId, condition.key, value, line.qtyOut)}
+                    />
+                  ))}
+                </div>
 
-      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4 shadow-sm">
+                <p
+                  className={`px-4 py-2 text-xs font-medium ${
+                    counted === line.qtyOut ? 'bg-green-soft text-green' : 'text-ink-3'
+                  }`}
+                >
+                  {counted === 0
+                    ? `Nothing counted — all ${line.qtyOut} staying out`
+                    : counted === line.qtyOut
+                      ? 'All of it accounted for'
+                      : `${counted} of ${line.qtyOut} · ${left} staying out`}
+                </p>
+              </Card>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="sticky bottom-20 mt-4 rounded-2xl border border-rule bg-card p-4 shadow-lg">
         {chosen.length === 0 ? (
-          <p className="text-sm text-ink-2">Set a quantity against what has come back.</p>
+          <p className="text-sm text-ink-2">Nothing counted yet. Use “All” on a row to fill it.</p>
         ) : (
           <>
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <span className="text-sm text-ink-2">
-                {chosen.reduce((sum, entry) => sum + entry.draft.qty, 0)} units ·{' '}
-                {formatDayFull(movedAt)}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="flex flex-wrap items-center gap-1.5">
+                <Chip tone="green">{units} coming back</Chip>
+                {damagedUnits > 0 && <Chip tone="amber">{damagedUnits} damaged</Chip>}
+                {lostUnits > 0 && <Chip tone="red">{lostUnits} lost</Chip>}
               </span>
               <span className="text-sm text-ink-2">
                 stops <Money paise={stoppedPerDay(chosen)} paiseDigits />
@@ -362,7 +443,7 @@ export function ReturnSheet({
               </span>
             </div>
             <Button onClick={commit} disabled={busy}>
-              {busy ? 'Recording…' : 'Record return'}
+              {busy ? 'Recording…' : `Record return of ${units}`}
             </Button>
           </>
         )}
@@ -371,11 +452,80 @@ export function ReturnSheet({
   );
 }
 
+/**
+ * One quantity line: a thumb-sized − and + either side of the number.
+ *
+ * Three rows rather than a condition toggle, because the split *is* the point.
+ * 40 good, 1 damaged, 1 lost is one lorry, and it should be one screen — not a
+ * mode to switch between and remember.
+ */
+function ConditionRow({
+  label,
+  hint,
+  tone,
+  ring,
+  value,
+  canAdd,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  tone: string;
+  ring: string;
+  value: number;
+  canAdd: boolean;
+  onChange: (value: number) => void;
+}) {
+  const active = value > 0;
+
+  return (
+    <div className={`flex items-center justify-between gap-3 px-4 py-2.5 ${active ? ring : ''}`}>
+      <div className="min-w-0">
+        <p className={`text-sm font-semibold ${active ? tone : 'text-ink-2'}`}>{label}</p>
+        <p className="truncate text-xs text-ink-3">{hint}</p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          aria-label={`One fewer ${label.toLowerCase()}`}
+          disabled={value <= 0}
+          onClick={() => onChange(value - 1)}
+          className="tap h-11 w-11 rounded-xl border border-rule bg-card text-xl font-semibold disabled:opacity-30"
+        >
+          −
+        </button>
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          aria-label={label}
+          value={value === 0 ? '' : String(value)}
+          placeholder="0"
+          onChange={(event) => onChange(Number(event.target.value.replace(/\D/g, '') || 0))}
+          className={`tabular h-11 w-14 rounded-xl border border-rule bg-card text-center text-base font-semibold outline-none focus:border-steel focus:ring-2 focus:ring-steel/25 ${
+            active ? tone : 'text-ink'
+          }`}
+        />
+        <button
+          type="button"
+          aria-label={`One more ${label.toLowerCase()}`}
+          disabled={!canAdd}
+          onClick={() => onChange(value + 1)}
+          className="tap h-11 w-11 rounded-xl border border-rule bg-card text-xl font-semibold disabled:opacity-30"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Rent this return takes off the daily accrual — the figure a contractor asks about. */
 function stoppedPerDay(chosen: Array<{ line: OutstandingLine; draft: Draft }>): number {
   return chosen.reduce(
     (sum, entry) =>
-      sum + Math.round((entry.line.accruingPerDay / entry.line.qtyOut) * entry.draft.qty),
+      sum + Math.round((entry.line.accruingPerDay / entry.line.qtyOut) * total(entry.draft)),
     0,
   );
 }
