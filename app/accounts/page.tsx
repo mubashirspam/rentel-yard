@@ -102,17 +102,25 @@ export default async function AccountsPage({
                 <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-2">
                   <span>
                     {account.siteName}
-                    {account.status === 'closed' && (
+                    {account.status === 'closed' ? (
                       <>
                         {' '}
                         <Chip>Closed</Chip>
                       </>
+                    ) : (
+                      account.isCompleted && (
+                        <>
+                          {' '}
+                          <Chip tone="green">✓ Completed</Chip>
+                        </>
+                      )
                     )}
                   </span>
                   <span>
                     {account.qtyOut > 0 ? (
                       <>
-                        <Qty qty={account.qtyOut} /> out · {formatDays(account.daysOpen)}
+                        <Qty qty={account.qtyOut} /> out · <Money paise={account.perDay} paiseDigits />
+                        /day
                       </>
                     ) : (
                       <>nothing out · {formatDays(account.daysOpen)}</>

@@ -22,6 +22,12 @@ const ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? 'owner@example.com';
 const ADMIN_NAME = process.env.SEED_ADMIN_NAME ?? 'Yard Owner';
 const ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 
+/**
+ * Minimum rental days. 0 — the owner's rule: charge the days actually held
+ * (D57). Set a number here if a yard wants a floor per issue lot.
+ */
+const MINIMUM_DAYS = Number(process.env.SEED_MINIMUM_DAYS ?? 0);
+
 /** §09 bill header. Editable here until the settings screen arrives at M7. */
 const YARD_ADDRESS = process.env.SEED_YARD_ADDRESS?.trim() || null;
 const YARD_PHONE = process.env.SEED_YARD_PHONE?.trim() || null;
@@ -72,7 +78,7 @@ async function main() {
     .insert(schema.settings)
     .values({
       orgId: org.id,
-      billing: DEFAULT_BILLING_CONFIG,
+      billing: { ...DEFAULT_BILLING_CONFIG, minimum_days: MINIMUM_DAYS },
       invoicePrefix: 'INV',
       nextInvoiceNo: 1,
       termsText: 'Rent is charged per day per unit. Damaged or lost items are charged at replacement rate.',

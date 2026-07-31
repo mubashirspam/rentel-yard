@@ -202,7 +202,11 @@ optimisation: without it a customer who takes 100 jacks in January and 100 more
 in June, then returns 100, is billed incorrectly and the error compounds
 silently.
 
-> **Before the first real bill**, the yard owner must confirm the five questions
-> at the end of `docs/decisions.md` — day counting, minimum rental period,
-> whether both the issue and return day are billed, damage pricing, and rate
-> visibility. Getting these wrong invalidates every bill the system produces.
+**Rent follows the days actually held.** There is no minimum rental period —
+issue today and one day is owed, not fifteen (D57, the owner's decision). The
+minimum-days machinery is still in the engine and still tested, so any yard that
+wants a floor sets `minimum_days` in `settings.billing`.
+
+> **Before the first real bill**, confirm the questions still open at the end of
+> `docs/decisions.md` — day counting, damage pricing, and rate visibility.
+> Getting these wrong invalidates every bill the system produces.

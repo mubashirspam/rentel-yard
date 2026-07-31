@@ -193,7 +193,9 @@ describe('a second bill', () => {
 });
 
 describe('the minimum-days floor across periods', () => {
-  const CONFIG_MIN = DEFAULT_BILLING_CONFIG; // 15 days
+  // The floor is off by default now (the yard charges days held), so this
+  // block states the 15 days it is about.
+  const CONFIG_MIN = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15 };
 
   function draftWithMinimum(movements: Movement[], from: string, to: string, first = false) {
     return buildBillDraft({

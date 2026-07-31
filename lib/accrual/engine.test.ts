@@ -14,7 +14,10 @@ import { DEFAULT_BILLING_CONFIG } from './config';
 import { accrue, isAccountEmpty, outstandingFor } from './engine';
 import type { BillingConfig, Movement } from './types';
 
-const CONFIG: BillingConfig = DEFAULT_BILLING_CONFIG;
+// §03.5's vectors are specified against a 15-day minimum, so they state it
+// explicitly. The shipped default is 0 — the yard charges days actually held —
+// but the floor still has to work for any yard that wants one.
+const CONFIG: BillingConfig = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15 };
 
 const JACK = 'item-jack';
 const SHEET = 'item-sheet';

@@ -59,7 +59,8 @@ beforeAll(async () => {
   );
 
   // No `settings` row: the org has not opened the settings screen yet, so the
-  // §03.1 defaults apply — inclusive_start, 15 minimum days, nearest rupee.
+  // shipped defaults apply — inclusive_start, no minimum-days floor (the
+  // owner's rule: charge the days actually held), rounded to the nearest rupee.
   const [customer] = await db.query<{ id: string }>(
     `insert into customers (org_id, name, mobile) values ($1, 'Rahim Contractor', '+919846012345')
      returning id`,
@@ -139,10 +140,11 @@ describe('M3 — a full account lifecycle', () => {
 
     const detail = await getAccountDetail(session, accountId, '2026-06-15');
 
-    // Both lots open. Jacks: 01-Jun → 15-Jun is 14 days inclusive_start, but
-    // the 15-day minimum floors it: 100 × 15 × ₹2 = ₹3,000. Spans: same-day
-    // issue is 1 day raw, floored to 15: 40 × 15 × ₹4 = ₹2,400.
-    expect(detail.accrual.rentTotal).toBe(100 * 15 * RATE_JACK + 40 * 15 * RATE_SPAN);
+    // Both lots open, charged for the days actually held (no minimum — the
+    // owner's rule). Jacks: 01-Jun → 15-Jun is 14 days inclusive_start,
+    // 100 × 14 × ₹2 = ₹2,800. Spans went out today, so one day:
+    // 40 × 1 × ₹4 = ₹160.
+    expect(detail.accrual.rentTotal).toBe(100 * 14 * RATE_JACK + 40 * 1 * RATE_SPAN);
     expect(detail.outstanding.map((line) => [line.itemName, line.qtyOut])).toEqual([
       ['Jack 3.0m', 100],
       ['Span 12ft', 40],
@@ -190,7 +192,7 @@ describe('M3 — a full account lifecycle', () => {
     expect(detail.accrual.damageTotal).toBe(4 * REPLACEMENT_JACK); // ₹1,800
   });
 
-  it('returns the spans on 22-Jun, under the minimum period', async () => {
+  it('returns the spans on 22-Jun and charges the seven days they were out', async () => {
     // Recorded after the 25-Jun damage but dated earlier — the yard writes up
     // gate passes late, and the engine orders by moved_at, not entry order.
     await record('RETURN', '2026-06-22', [{ itemId: spanId, qty: 40 }], 'GP-005');
@@ -198,9 +200,10 @@ describe('M3 — a full account lifecycle', () => {
     const detail = await getAccountDetail(session, accountId, TODAY);
     const spanLine = detail.accrual.lines.find((line) => line.itemId === spanId)!;
 
-    expect(spanLine.rawDays).toBe(7); // 15-Jun → 22-Jun
-    expect(spanLine.days).toBe(15);
-    expect(spanLine.minimumApplied).toBe(true);
+    // 15-Jun → 22-Jun. No floor, so what was held is what is charged.
+    expect(spanLine.rawDays).toBe(7);
+    expect(spanLine.days).toBe(7);
+    expect(spanLine.minimumApplied).toBe(false);
   });
 
   it('refuses to close while 36 jacks are still out', async () => {
@@ -221,22 +224,24 @@ describe('M3 — a full account lifecycle', () => {
     /*
      * Hand calculation. One jack lot (100 on 01-Jun at ₹2/day) consumed FIFO in
      * three slices, one span lot (40 on 15-Jun at ₹4/day) consumed in one.
-     * inclusive_start: the issue day is billed, the return day is not.
+     * inclusive_start: the issue day is billed, the return day is not. No
+     * minimum-days floor — every line is the days the equipment was actually
+     * out, which is the rule the yard owner chose.
      *
      *   60 jacks  01-Jun → 21-Jun   20 days   60 × 20 × ₹2  =  ₹2,400
      *    4 jacks  01-Jun → 25-Jun   24 days    4 × 24 × ₹2  =    ₹192   (damaged)
      *   36 jacks  01-Jun → 30-Jun   29 days   36 × 29 × ₹2  =  ₹2,088
-     *   40 spans  15-Jun → 22-Jun    7 → 15   40 × 15 × ₹4  =  ₹2,400   (minimum)
-     *                                                Rent      ₹7,080
+     *   40 spans  15-Jun → 22-Jun    7 days   40 ×  7 × ₹4  =  ₹1,120
+     *                                                Rent      ₹5,800
      *   Damaged: Jack 3.0m × 4 @ ₹450                 Damages   ₹1,800
      *                                                 ─────────────────
-     *                                                 Due       ₹8,880
+     *                                                 Due       ₹7,600
      */
-    const rent = 240_000 + 19_200 + 208_800 + 240_000;
-    expect(rent).toBe(708_000); // ₹7,080 — the arithmetic above, in paise
+    const rent = 240_000 + 19_200 + 208_800 + 112_000;
+    expect(rent).toBe(580_000); // ₹5,800 — the arithmetic above, in paise
     expect(detail.accrual.rentTotal).toBe(rent);
     expect(detail.accrual.damageTotal).toBe(180_000);
-    expect(detail.balance.balance).toBe(888_000);
+    expect(detail.balance.balance).toBe(760_000);
     expect(detail.balance.status).toBe('due');
 
     // Four slices, one per return, in ledger order.
@@ -244,7 +249,7 @@ describe('M3 — a full account lifecycle', () => {
       [60, 20, 240_000],
       [4, 24, 19_200],
       [36, 29, 208_800],
-      [40, 15, 240_000],
+      [40, 7, 112_000],
     ]);
 
     expect(detail.outstanding).toEqual([]);
@@ -266,7 +271,7 @@ describe('M3 — a full account lifecycle', () => {
     await db.query(`update items set rate_per_day = 900 where id = $1`, [jackId]);
 
     const detail = await getAccountDetail(session, accountId, TODAY);
-    expect(detail.accrual.rentTotal).toBe(708_000);
+    expect(detail.accrual.rentTotal).toBe(580_000);
 
     await db.query(`update items set rate_per_day = $2 where id = $1`, [jackId, RATE_JACK]);
   });
@@ -314,7 +319,7 @@ describe('M3 — a full account lifecycle', () => {
     expect(closed).toMatchObject({
       status: 'closed',
       customerName: 'Rahim Contractor',
-      balance: 888_000,
+      balance: 760_000,
       qtyOut: 0,
     });
   });

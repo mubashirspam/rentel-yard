@@ -745,15 +745,76 @@ it done, not after.
 
 ---
 
+## Owner's answers
+
+### D57. No minimum rental period — rent follows the days actually held
+
+**Answered by the owner**, which settles open questions 1 and 3 below.
+
+The complaint that prompted it: "if I issue today, don't calculate it for 15
+days — based on the days passed, automatically calculate it." Under §03.1's
+15-day default, a gate pass written this morning showed a fortnight's rent
+before the lorry had left the gate. Correct per the spec, wrong for the yard,
+and impossible to explain across a counter.
+
+`DEFAULT_BILLING_CONFIG.minimum_days` is now `0`, and the live database was
+updated with `jsonb_set(billing, '{minimum_days}', '0')` so the running app
+matches. One issue day is one day of rent; a lot back after five days is
+charged five.
+
+Nothing was removed to achieve it. The floor is a config value the engine has
+always honoured, so §03.5's twelve vectors still test it — `engine.test.ts` and
+the bill-draft tests now state `minimum_days: 15` explicitly, because those
+vectors are specified against it. A yard that wants a minimum sets one.
+
+The M3 lifecycle test was re-derived by hand against the new rule: the same
+lifecycle now totals **₹5,800 rent + ₹1,800 damages = ₹7,600 due**, where the
+15-day floor made it ₹7,080 + ₹1,800. The span line is the visible difference —
+seven days out is now billed as seven, not floored to fifteen.
+
+**This changes money.** Any bill already issued keeps its frozen lines (D42);
+only future accrual follows the new rule.
+
+### D58. A site with nothing out is *completed*, not closed
+
+Also the owner's choice, from two offered. When the last item comes back the
+account shows **✓ Completed** and sinks below the sites that still hold
+equipment — but it stays open, so the next load to the same site needs no new
+khata, and closing remains the deliberate act §02 describes.
+
+`AccountListRow.isCompleted` is derived (`status === 'open' && qtyOut === 0`),
+never stored — same rule as every other figure here (§00 rule 2). The accounts
+list sorts *still out → completed → closed*, then by who owes most, because an
+admin's day is spent on what is still in a contractor's yard.
+
+Rejected alternative: closing automatically at zero. It reads tidy and is wrong
+in practice — a site that empties on Friday often takes another load on Monday,
+and an auto-closed account makes that a reopening chore.
+
+### D59. The tab bar's active pill slides
+
+The bar was five flat labels; which one was active read only as a colour. It is
+now a filled pill that moves between positions in 150ms — §08.5's stated
+ceiling for animation.
+
+Motion here is not decoration. On a 360px screen held one-handed, a moving
+object tells a thumb where it came from and where it is now; a colour change
+alone does not. The slide is one CSS transform on a single element, positioned
+at `index × 20%` because the five tabs are equal width — no measuring, no resize
+observer, nothing to break on rotation, and `motion-reduce` turns it off.
+
+---
+
 ## Open questions for the yard owner
 
-§14 requires these answered before the first real bill. Until then the engine
-runs on the §03.1 defaults, which are provisional.
+§14 requires these answered before the first real bill. Two are now settled —
+see D57 above.
 
-1. **Vector 10 (D1)** — is a lot returned in three parts ₹450 or ₹540? This is
-   the one that decides whether the minimum-days rule is understood correctly.
+1. ~~**Vector 10 (D1)** — ₹450 or ₹540?~~ **Moot for this yard:** with no
+   minimum-days floor the disputed multiplication does not arise. The vector is
+   still tested at 15 days, so the engine's behaviour stays pinned either way.
 2. **Day counting** — is the return day billed? (`inclusive_start` vs `inclusive_both`)
-3. **Minimum rental period** — is 15 days right, and is it per issue lot?
+3. ~~**Minimum rental period**~~ — **answered: none.** See D57.
 4. **Damage pricing** — always the replacement rate, or typed per movement?
 5. **Rate visibility** — may customers see per-day rates in the portal?
 6. **Mobile lookup (D19)** — is the owner comfortable that anyone knowing a

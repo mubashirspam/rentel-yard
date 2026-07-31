@@ -84,9 +84,19 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
           </>
         }
         action={
-          <Chip tone={account.status === 'open' ? 'steel' : 'neutral'}>
-            {account.status === 'open' ? 'Open' : 'Closed'}
-          </Chip>
+          /*
+           * Three states, not two. A site with everything back is *completed*
+           * — nothing accruing, nothing to chase in the yard — but it stays
+           * open so the next load out needs no new account (§02: closing is a
+           * deliberate act, and it is refused while anything is out).
+           */
+          account.status === 'closed' ? (
+            <Chip tone="neutral">Closed</Chip>
+          ) : detail.outstanding.length === 0 ? (
+            <Chip tone="green">✓ Completed</Chip>
+          ) : (
+            <Chip tone="steel">Open</Chip>
+          )
         }
       />
 

@@ -1,10 +1,15 @@
 /**
  * Billing configuration defaults and validation (§03.1).
  *
- * The defaults here are the ones the spec states. They are *provisional* —
- * §14 requires the yard owner to confirm the day-counting convention, the
- * minimum rental period, whether both the issue and return day are billed,
- * and how damage is priced, before any bill is issued for real.
+ * `minimum_days: 0` is **the yard owner's answer**, not §03.1's number. The
+ * spec proposes a 15-day minimum; the owner asked for rent to follow the days
+ * actually held — issue today and one day is owed, not fifteen. It is the
+ * simplest rule to explain across a counter, and it is what this yard charges.
+ *
+ * The engine's minimum-days machinery is untouched and still tested: §03.5's
+ * twelve vectors are specified against a 15-day floor and `engine.test.ts`
+ * passes that explicitly. Any yard that wants a minimum sets one in
+ * `settings.billing` and the arithmetic is waiting for it.
  */
 
 import { LedgerError, ERROR_CODES } from '../errors';
@@ -12,7 +17,8 @@ import type { BillingConfig } from './types';
 
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   day_count_mode: 'inclusive_start',
-  minimum_days: 15,
+  /** Owner's decision: charge the days actually held. See the note above. */
+  minimum_days: 0,
   minimum_days_applies: 'per_issue_lot',
   rounding: 'nearest_rupee',
   damage_charge_mode: 'replacement_rate',

@@ -290,6 +290,20 @@ export interface AccountListRow extends AccountRow {
   accruedRent: number;
   /** Paise per day everything still out is accruing at. */
   perDay: number;
+  /**
+   * Open, but everything has come back and nothing is accruing.
+   *
+   * The owner's rule: a site that has been emptied is *completed*, not closed.
+   * It keeps its account so the next lorry to the same site needs no new khata,
+   * and closing stays a deliberate act (§02).
+   */
+  isCompleted: boolean;
+}
+
+/** Sort key for the working list: still out → completed → closed. */
+function rank(account: { status: 'open' | 'closed'; isCompleted: boolean }): number {
+  if (account.status === 'closed') return 2;
+  return account.isCompleted ? 1 : 0;
 }
 
 export interface AccountListFilters {
@@ -359,19 +373,28 @@ export async function listAccounts(
       const accrual = accrue(ledger.movements, config, asOf);
       const balance = computeBalance({ accrual, ...ledger });
 
+      const qtyOut = Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0);
+
       return {
         ...account,
+        isCompleted: account.status === 'open' && qtyOut === 0,
         balance: balance.balance,
-        qtyOut: Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0),
+        qtyOut,
         daysOpen: differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1,
         accruedRent: accrual.rentTotal + accrual.damageTotal,
         perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
       };
     })
-    // Open first, then whoever owes most — that is the order an admin chases in.
+    /*
+     * Working order: sites with equipment out first, then completed ones, then
+     * closed. Within each, whoever owes most. An admin's day is spent on what
+     * is still out — a completed site only matters when the money is chased.
+     */
     .sort(
       (a, b) =>
-        Number(a.status === 'closed') - Number(b.status === 'closed') || b.balance - a.balance,
+        rank(a) - rank(b) ||
+        b.balance - a.balance ||
+        a.customerName.localeCompare(b.customerName),
     );
 }
 

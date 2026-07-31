@@ -70,6 +70,7 @@ export function AccountPicker({
               daysOpen: 0,
               accruedRent: 0,
               perDay: 0,
+              isCompleted: false,
             })),
           );
           setOffline(true);
