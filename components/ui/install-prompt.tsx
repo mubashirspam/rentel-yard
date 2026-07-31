@@ -43,7 +43,7 @@ export function InstallPrompt() {
   if (!visible || !event) return null;
 
   return (
-    <div className="fixed inset-x-0 bottom-20 z-20 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-rule bg-card p-4 shadow-lg">
+    <div className="fixed inset-x-0 bottom-20 z-20 mx-auto w-[min(28rem,calc(100%-2rem))] rounded-2xl border border-rule bg-card p-4">
       <p className="font-medium">Add Yard Ledger to the home screen</p>
       <p className="mt-1 text-sm text-ink-2">
         It opens faster and keeps working when the signal drops.

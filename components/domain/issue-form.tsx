@@ -272,7 +272,7 @@ export function IssueForm({
       )}
 
       {/* §08.3: "running total of rent/day shown as items are added". */}
-      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4 shadow-sm">
+      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4">
         {chosen.length === 0 ? (
           <p className="text-sm text-ink-2">Add a quantity against an item to continue.</p>
         ) : (

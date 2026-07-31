@@ -46,7 +46,7 @@ export function Segmented({
             aria-pressed={option.active}
             onClick={() => onSelect(index)}
             className={`tap flex flex-1 items-center justify-center rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${
-              option.active ? 'bg-card text-steel shadow-sm' : 'text-ink-2 hover:text-ink'
+              option.active ? 'bg-card text-steel' : 'text-ink-2 hover:text-ink'
             }`}
           >
             {option.label}
@@ -68,7 +68,7 @@ export function Segmented({
           aria-current={option.active ? 'page' : undefined}
           className={`tap flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition-colors duration-150 ${
             option.active
-              ? 'bg-card text-steel shadow-sm'
+              ? 'bg-card text-steel'
               : 'text-ink-2 hover:text-ink active:bg-card/60'
           }`}
         >

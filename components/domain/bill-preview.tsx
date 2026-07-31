@@ -254,7 +254,7 @@ export function BillPreviewScreen({
         onAdded={() => void refresh(periodFrom, periodTo)}
       />
 
-      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4 shadow-sm">
+      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4">
         <dl className="mb-3 grid grid-cols-2 gap-y-1 text-sm">
           <dt className="text-ink-2">Rent</dt>
           <dd className="text-right">

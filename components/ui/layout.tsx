@@ -70,16 +70,46 @@ export function PageHeader({
   );
 }
 
+/**
+ * A flat card. No shadow anywhere in this product — a yard screen in daylight
+ * needs contrast at the edges, not depth, and a page of floating rectangles
+ * reads as noise. Separation is carried by the border and the paper background.
+ */
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-2xl border border-rule bg-card shadow-sm ${className}`}>{children}</div>
-  );
+  return <div className={`rounded-2xl border border-rule bg-card ${className}`}>{children}</div>;
 }
 
-export function SectionTitle({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+const ACCENT = {
+  neutral: 'bg-ink-3',
+  steel: 'bg-steel',
+  green: 'bg-green',
+  amber: 'bg-amber',
+  red: 'bg-red',
+} as const;
+
+/**
+ * A section heading with a coloured rule.
+ *
+ * Ten sections of grey capitals down one page is a wall. The rule gives each
+ * one a colour that means what it means everywhere else — steel for the yard's
+ * own work, green settled, amber pending, red overdue — so a screen can be
+ * scanned rather than read.
+ */
+export function SectionTitle({
+  children,
+  aside,
+  tone = 'neutral',
+}: {
+  children: ReactNode;
+  aside?: ReactNode;
+  tone?: keyof typeof ACCENT;
+}) {
   return (
     <div className="mb-2 mt-6 flex items-baseline justify-between gap-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-ink-2">{children}</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-ink-2">
+        <span aria-hidden className={`h-3.5 w-1 rounded-full ${ACCENT[tone]}`} />
+        {children}
+      </h2>
       {aside}
     </div>
   );
@@ -132,14 +162,36 @@ export function EmptyState({
   );
 }
 
-/** A row of a list, tappable to somewhere. 44px minimum by way of `tap`. */
-export function RowLink({ href, children }: { href: string; children: ReactNode }) {
+/**
+ * A row of a list, tappable to somewhere. 44px minimum by way of `tap`.
+ *
+ * `index` prints a serial number in the gutter. A yard counts things in order —
+ * "the third site", "line 7" — and a numbered row can be pointed at over the
+ * phone without reading the whole name out.
+ */
+export function RowLink({
+  href,
+  children,
+  index,
+}: {
+  href: string;
+  children: ReactNode;
+  index?: number;
+}) {
   return (
     <Link
       href={href}
-      className="tap block px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-paper active:bg-paper"
+      className="tap flex gap-3 px-4 py-3 transition-colors first:rounded-t-2xl last:rounded-b-2xl hover:bg-paper active:bg-paper"
     >
-      {children}
+      {index !== undefined && (
+        <span
+          aria-hidden
+          className="tabular mt-0.5 w-5 shrink-0 text-right text-xs font-semibold text-ink-3"
+        >
+          {index}
+        </span>
+      )}
+      <span className="min-w-0 flex-1">{children}</span>
     </Link>
   );
 }

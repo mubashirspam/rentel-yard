@@ -99,7 +99,7 @@ export default async function HomePage() {
         </List>
       )}
 
-      <SectionTitle>Today</SectionTitle>
+      <SectionTitle tone="steel">Today</SectionTitle>
       {data.today.length === 0 ? (
         <EmptyState
           title="Nothing has moved today"
@@ -211,7 +211,7 @@ export default async function HomePage() {
 
       {data.overLimit.length > 0 && (
         <>
-          <SectionTitle>Over their credit limit</SectionTitle>
+          <SectionTitle tone="red">Over their credit limit</SectionTitle>
           <List>
             {data.overLimit.map((customer) => (
               <li key={customer.customerId}>

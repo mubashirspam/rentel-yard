@@ -6,7 +6,7 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 
 const CONTROL =
-  'tap w-full rounded-xl border border-rule bg-card px-3 py-2 text-base text-ink shadow-sm ' +
+  'tap w-full rounded-xl border border-rule bg-card px-3 py-2 text-base text-ink ' +
   'outline-none focus:border-steel focus:ring-2 focus:ring-steel/25 ' +
   'disabled:bg-paper disabled:text-ink-3';
 
@@ -78,8 +78,8 @@ export function Button({
 }) {
   const styles =
     variant === 'primary'
-      ? 'bg-steel text-white shadow-sm hover:bg-steel-strong'
-      : 'border border-rule bg-card text-ink shadow-sm hover:bg-paper';
+      ? 'bg-steel text-white hover:bg-steel-strong'
+      : 'border border-rule bg-card text-ink hover:bg-paper';
 
   return (
     <button

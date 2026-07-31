@@ -94,9 +94,9 @@ export default async function AccountsPage({
         </EmptyState>
       ) : (
         <List>
-          {accounts.map((account) => (
+          {accounts.map((account, index) => (
             <li key={account.id}>
-              <RowLink href={`/accounts/${account.id}`}>
+              <RowLink href={`/accounts/${account.id}`} index={index + 1}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="font-medium">{account.customerName}</span>
                   <Money paise={account.balance} className="font-medium" />

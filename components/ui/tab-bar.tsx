@@ -63,7 +63,7 @@ export function TabBar() {
   return (
     <nav
       aria-label="Main"
-      className="sticky bottom-0 z-10 mt-auto border-t border-rule bg-card/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-1px_3px_rgba(15,23,42,0.06)] backdrop-blur"
+      className="sticky bottom-0 z-10 mt-auto border-t border-rule bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <div className="relative mx-auto w-full max-w-2xl">
         {/* The pill. One element, moved by transform — no layout work, so it

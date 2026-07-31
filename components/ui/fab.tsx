@@ -88,7 +88,7 @@ export function Fab() {
               className="pointer-events-auto fixed inset-0 z-10 cursor-default bg-ink/30"
               onClick={() => setOpen(false)}
             />
-            <ul className="pointer-events-auto absolute bottom-16 right-0 z-20 w-64 overflow-hidden rounded-2xl border border-rule bg-card shadow-xl">
+            <ul className="pointer-events-auto absolute bottom-16 right-0 z-20 w-64 overflow-hidden rounded-2xl border border-rule bg-card">
               {actions.map((action) => (
                 <li key={action.href} className="border-b border-rule last:border-b-0">
                   <Link href={action.href} className="tap flex items-center gap-3 px-4 py-3 hover:bg-paper">
@@ -116,7 +116,7 @@ export function Fab() {
             setOpenedAt(pathname);
             setOpen(!showing);
           }}
-          className={`pointer-events-auto relative z-20 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-lg transition-transform ${
+          className={`pointer-events-auto relative z-20 flex h-14 w-14 items-center justify-center rounded-full text-white transition-transform ${
             showing ? 'rotate-45 bg-ink' : 'bg-steel hover:bg-steel-strong'
           }`}
         >

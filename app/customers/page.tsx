@@ -73,9 +73,9 @@ export default async function CustomersPage({
         </EmptyState>
       ) : (
         <List>
-          {customers.map((customer) => (
+          {customers.map((customer, index) => (
             <li key={customer.id}>
-              <RowLink href={`/customers/${customer.id}`}>
+              <RowLink href={`/customers/${customer.id}`} index={index + 1}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="font-medium">
                     {customer.name}

@@ -9,6 +9,7 @@
 import Link from 'next/link';
 
 import { AccountActions } from '@/components/domain/account-actions';
+import { AddCharge } from '@/components/domain/add-charge';
 import { BalanceCard } from '@/components/domain/balance-card';
 import { LedgerList } from '@/components/domain/ledger-list';
 import { OutstandingList } from '@/components/domain/outstanding-list';
@@ -172,7 +173,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         </Card>
       )}
 
-      <SectionTitle>Actions</SectionTitle>
+      <SectionTitle tone="steel">Actions</SectionTitle>
       <AccountActions
         accountId={account.id}
         status={account.status}
@@ -182,13 +183,19 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         today={asOf}
       />
 
+      {can(session, 'adjustment.create') && account.status === 'open' && (
+        <div className="mt-3">
+          <AddCharge accountId={account.id} today={asOf} />
+        </div>
+      )}
+
       <SectionTitle
         aside={
           detail.outstanding.length > 0 ? (
             <span className="text-sm text-ink-2">tap a row to return it</span>
           ) : undefined
         }
-      >
+       tone="amber">
         Currently out
       </SectionTitle>
 
@@ -227,7 +234,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
                 </Link>
               ) : undefined
             }
-          >
+           tone="green">
             Bills
           </SectionTitle>
 
@@ -286,7 +293,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         </EmptyState>
       )}
 
-      <SectionTitle>Send a message</SectionTitle>
+      <SectionTitle tone="steel">Send a message</SectionTitle>
       <WhatsAppComposer mobile={customer.mobile} templates={templates} title="Statement" />
 
       {accrual.damageLines.length > 0 && (

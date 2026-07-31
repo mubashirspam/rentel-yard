@@ -397,7 +397,7 @@ export function ReturnSheet({
         })}
       </ul>
 
-      <div className="sticky bottom-20 mt-4 rounded-2xl border border-rule bg-card p-4 shadow-lg">
+      <div className="sticky bottom-20 mt-4 rounded-2xl border border-rule bg-card p-4">
         {chosen.length === 0 ? (
           <p className="text-sm text-ink-2">Nothing counted yet.</p>
         ) : (

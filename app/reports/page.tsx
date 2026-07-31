@@ -52,7 +52,7 @@ export default async function ReportsPage({
           name="year"
           defaultValue={String(year)}
           aria-label="Year"
-          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base shadow-sm outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
         >
           {years.map((option) => (
             <option key={option} value={option}>
@@ -62,7 +62,7 @@ export default async function ReportsPage({
         </select>
         <button
           type="submit"
-          className="tap rounded-xl bg-steel px-4 font-semibold text-white shadow-sm hover:bg-steel-strong"
+          className="tap rounded-xl bg-steel px-4 font-semibold text-white hover:bg-steel-strong"
         >
           Show
         </button>

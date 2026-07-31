@@ -5,7 +5,7 @@
 import Link from 'next/link';
 
 import { IssueForm, type IssueTarget } from '@/components/domain/issue-form';
-import { Chip, EmptyState, List, PageHeader, RowLink, Screen } from '@/components/ui/layout';
+import { Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
 import { Money, Qty } from '@/components/ui/money';
 import { getAccountDetail, listAccounts } from '@/lib/accounts/service';
 import { requireCapability, type StaffSession } from '@/lib/auth/guard';
@@ -72,19 +72,30 @@ async function ActiveRentals({
     <Screen>
       <PageHeader
         title="Deliveries"
-        subtitle="Sites with equipment on hire — tap one to deliver more"
-        action={
-          <Link
-            href="/issue?new=1"
-            className="tap inline-flex items-center gap-1 rounded-xl bg-steel px-4 font-semibold text-white shadow-sm hover:bg-steel-strong"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4" aria-hidden>
-              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
-            </svg>
-            New issue
-          </Link>
-        }
+        subtitle="Tap a site to deliver more to it"
       />
+
+      {/* Both doors, in the open. Delivering to a site that already exists is
+          the common case and is the list below; the other two were previously
+          reachable only from inside the delivery flow, which is where people
+          went looking for them and did not find them. */}
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <Link
+          href="/issue?new=1"
+          className="tap flex items-center justify-center gap-1.5 rounded-xl bg-steel px-3 font-semibold text-white hover:bg-steel-strong"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4" aria-hidden>
+            <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+          </svg>
+          New delivery
+        </Link>
+        <Link
+          href="/customers/new"
+          className="tap flex items-center justify-center gap-1.5 rounded-xl border border-rule bg-card px-3 font-semibold hover:bg-paper"
+        >
+          New customer
+        </Link>
+      </div>
 
       <form action="/issue" className="mb-4 flex gap-2">
         <input
@@ -93,12 +104,14 @@ async function ActiveRentals({
           defaultValue={q ?? ''}
           placeholder="Customer or site"
           aria-label="Search rentals"
-          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base shadow-sm outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
         />
-        <button type="submit" className="tap rounded-xl bg-steel px-4 font-semibold text-white shadow-sm hover:bg-steel-strong">
+        <button type="submit" className="tap rounded-xl bg-steel px-4 font-semibold text-white hover:bg-steel-strong">
           Search
         </button>
       </form>
+
+      <SectionTitle tone="steel">Existing sites</SectionTitle>
 
       {accounts.length === 0 ? (
         <EmptyState
@@ -106,21 +119,21 @@ async function ActiveRentals({
           action={
             <Link
               href="/issue?new=1"
-              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white shadow-sm"
+              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
             >
-              New issue
+              New delivery
             </Link>
           }
         >
           {q
             ? 'Try the contractor’s name, or part of the site name.'
-            : 'Start the first issue and the site opens itself here.'}
+            : 'Open a site from a customer’s page, or start a delivery and create it as you go.'}
         </EmptyState>
       ) : (
         <List>
-          {accounts.map((account) => (
+          {accounts.map((account, index) => (
             <li key={account.id}>
-              <RowLink href={`/issue?account=${account.id}`}>
+              <RowLink href={`/issue?account=${account.id}`} index={index + 1}>
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="font-medium">{account.customerName}</span>
                   {account.qtyOut > 0 ? (

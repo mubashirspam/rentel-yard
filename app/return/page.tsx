@@ -114,11 +114,11 @@ async function AccountChooser({
           defaultValue={q ?? ''}
           placeholder="Customer or site"
           aria-label="Search sites"
-          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base shadow-sm outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
         />
         <button
           type="submit"
-          className="tap rounded-xl bg-steel px-4 font-semibold text-white shadow-sm hover:bg-steel-strong"
+          className="tap rounded-xl bg-steel px-4 font-semibold text-white hover:bg-steel-strong"
         >
           Search
         </button>
@@ -154,7 +154,7 @@ async function AccountChooser({
           action={
             <Link
               href="/issue"
-              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white shadow-sm"
+              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
             >
               Record a delivery
             </Link>
