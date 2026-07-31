@@ -23,15 +23,17 @@ Nothing in this project needs Docker, a local Postgres, or a paid service.
 
 ## 1. Branches
 
-Three git branches, each mapping to one environment:
-
 Three git branches, each mapping to one environment. **`main` is the live yard.**
 
 | Branch | Environment | Database | Who breaks it |
 |---|---|---|---|
-| `dev` | Preview deploys | Neon `dev` branch | You, constantly. That is what it is for. |
-| `staging` | staging.yourdomain | Neon `staging` branch | Nobody except a promotion from `dev` |
-| `main` | The yard's real URL | Neon `main` branch (primary) | Nobody except a promotion from `staging` |
+| `dev` | Local work, preview deploys | Neon `staging` | You, constantly. That is what it is for. |
+| `staging` | staging.yourdomain | Neon `staging` — the same one | Nobody except a promotion from `dev` |
+| `main` | The yard's real URL | Neon `main` — its own, alone | Nobody except a promotion from `staging` |
+
+Two databases, not three: `dev` and `staging` share one, and production has its
+own. The only separation that protects anything is the one around the yard's
+real data.
 
 Work happens on `dev` (or short-lived branches off it). Nothing is ever
 committed directly to `staging` or `main` — code only arrives there by being
@@ -76,21 +78,36 @@ every push and PR.
 
 ---
 
-## 2. Neon — three database branches
+## 2. Neon — two database branches
 
-Create one project, then three branches inside it. Neon branches are copy-on-
-write, so this costs nothing extra and staging can be reset from production data
-whenever you want a realistic test.
+One project, two branches. Neon branches are copy-on-write, so `staging` can be
+reset from a copy of production whenever you want to test against real-shaped
+data.
 
 1. **Create the project.** Region: `ap-southeast-1` (Singapore) — the closest to
    Kerala on the free tier.
 2. Neon's default branch is **`main`**. Leave the name alone: it matches the git
-   branch, and both hold the real yard. Nothing else touches it.
-3. Create a child branch **`staging`** from it.
-4. Create a child branch **`dev`** from it, for local work and preview deploys.
+   branch, and both hold the real yard. Nothing else touches it, ever.
+3. Create one child branch, **`staging`**. It serves the staging deploy, every
+   preview deploy, and your laptop.
 
-So the naming lines up end to end — git `main` → Neon `main` → the yard's URL;
-git `dev` → Neon `dev` → your laptop.
+**What sharing one database means in practice.** Local work writes into the same
+rows the staging site shows. That is fine — and simpler than juggling a third
+connection string — as long as you remember two things:
+
+- `pnpm seed` is safe to re-run, but anything genuinely destructive you try
+  locally is visible on staging until you reset it.
+- Resetting is one click: in Neon, **reset `staging` from `main`** gives you a
+  fresh copy of real data in seconds. Do that before any serious test, and after
+  any experiment you would rather not explain.
+
+If a piece of work ever needs true isolation — a migration you are unsure of, a
+data import you want to rehearse — create a throwaway Neon branch, point
+`.env.local` at it for the afternoon, and delete it afterwards. That is a
+deliberate act, not the standing arrangement.
+
+So the naming lines up: git `main` → Neon `main` → the yard's URL; git `dev` and
+`staging` → Neon `staging` → your laptop and the staging site.
 
 For each branch, copy **two** connection strings from the Neon dashboard:
 
@@ -113,8 +130,8 @@ pnpm install
 cp .env.example .env.local
 ```
 
-Fill in `.env.local` with the **`dev`** branch strings, then generate the two
-secrets:
+Fill in `.env.local` with the **Neon `staging`** strings — the same database the
+staging site uses — then generate the two secrets:
 
 ```bash
 openssl rand -base64 32   # → BETTER_AUTH_SECRET
@@ -187,21 +204,25 @@ For each of the two projects:
 
 5. Region: **Singapore (`sin1`)**, matching Neon.
 
-Preview deploys from `dev` should point at the Neon `dev` branch — set those
-variables in the staging project's *Preview* scope, and remove the ignored-build
-override there if you want previews on every `dev` push.
+Preview deploys from `dev` use the same Neon `staging` strings — copy the
+staging project's variables into its *Preview* scope, and remove the
+ignored-build override there if you want a preview on every `dev` push.
 
 ### Migrations on deploy
 
 Vercel does not run migrations. Apply them yourself, from your machine, against
-the environment's **unpooled** URL, *before* promoting the code that needs them:
+the environment's **unpooled** URL, *before* promoting the code that needs them.
+
+There are only two databases, so there are only two migrate runs. The first
+happens the moment you write a migration, because your laptop already points at
+Neon `staging` — `pnpm db:migrate` locally *is* the staging migration:
 
 ```bash
-DATABASE_URL_UNPOOLED='<staging direct string>' pnpm db:migrate
+pnpm db:migrate                                  # local = Neon staging
 git checkout staging && git merge --ff-only dev && git push
 ```
 
-Same shape when promoting to the yard, with the Neon `main` string:
+Then the yard, with the Neon `main` string:
 
 ```bash
 DATABASE_URL_UNPOOLED='<production direct string>' pnpm db:migrate
