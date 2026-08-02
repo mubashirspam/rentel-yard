@@ -351,16 +351,21 @@ export function ReturnSheet({
                   <p className="truncate font-semibold">{line.itemName}</p>
 
                   {/* What a worker checks before counting: how many are out,
-                      since when, how long, what it costs a day. */}
+                      since when, how long, what it costs a day, and what it has
+                      cost so far — the last being what a contractor asks about
+                      while the lorry is still at the gate. */}
                   <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <Chip tone="steel">
+                    <Chip tone="amber">
                       <Qty qty={line.qtyOut} unit={line.unit} /> out
                     </Chip>
                     <Chip>since {formatDay(line.since)}</Chip>
                     <Chip>{formatDays(line.daysHeld)}</Chip>
-                    <Chip>
+                    <Chip tone="steel">
                       <Money paise={line.accruingPerDay} paiseDigits />
                       /day
+                    </Chip>
+                    <Chip>
+                      rent so far <Money paise={line.accruedSoFar} />
                     </Chip>
                   </div>
                 </div>

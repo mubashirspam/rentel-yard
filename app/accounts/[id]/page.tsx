@@ -10,10 +10,11 @@ import Link from 'next/link';
 
 import { AccountActions } from '@/components/domain/account-actions';
 import { AddCharge } from '@/components/domain/add-charge';
+import { BillsPanel } from '@/components/domain/bills-panel';
 import { BalanceCard } from '@/components/domain/balance-card';
 import { LedgerList } from '@/components/domain/ledger-list';
 import { OutstandingList } from '@/components/domain/outstanding-list';
-import { Card, Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
+import { Card, Chip, EmptyState, PageHeader, Screen, SectionTitle } from '@/components/ui/layout';
 import { Money } from '@/components/ui/money';
 import { differenceInCalendarDays } from '@/lib/accrual';
 import { getAccountDetail } from '@/lib/accounts/service';
@@ -21,20 +22,13 @@ import { can, requireCapability } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
 import { listBillsForAccount } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
-import { formatDay, formatDayFull, formatDays, formatMobile, formatMonth, telHref, waHref } from '@/lib/format';
+import { formatDayFull, formatDays, formatMobile, formatMonth, telHref, waHref } from '@/lib/format';
 import { statementMessage } from '@/lib/messages';
 import { orgName } from '@/lib/org';
 import { getMoneySummary } from '@/lib/payments/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const BILL_TONE = {
-  paid: 'green',
-  partial: 'amber',
-  pending: 'steel',
-  overdue: 'red',
-} as const;
 
 export default async function AccountPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -233,9 +227,10 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         </EmptyState>
       )}
 
-      {showMoney && (
+      {showMoney && money && (
         <>
           <SectionTitle
+            tone="green"
             aside={
               can(session, 'bill.issue') ? (
                 <Link
@@ -246,46 +241,16 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
                 </Link>
               ) : undefined
             }
-           tone="green">
-            Bills
+          >
+            Money
           </SectionTitle>
 
-          {bills.length === 0 ? (
-            <EmptyState title="Nothing billed yet">
-              Rent accrues from the day equipment leaves. Generate a bill for any period up to
-              today — what is already billed is never charged twice.
-            </EmptyState>
-          ) : (
-            <List>
-              {bills.map((bill) => (
-                <li key={bill.id}>
-                  <RowLink href={`/bills/${bill.id}`}>
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="font-medium">
-                        {bill.invoiceNo}{' '}
-                        <Chip tone={BILL_TONE[bill.status]}>{bill.status}</Chip>
-                      </span>
-                      <Money paise={bill.grandTotal} className="font-medium" />
-                    </div>
-                    <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-2">
-                      <span>
-                        {formatDay(bill.periodFrom)} → {formatDayFull(bill.periodTo)}
-                      </span>
-                      <span>
-                        {bill.outstanding > 0 ? (
-                          <>
-                            <Money paise={bill.outstanding} /> pending
-                          </>
-                        ) : (
-                          'settled'
-                        )}
-                      </span>
-                    </div>
-                  </RowLink>
-                </li>
-              ))}
-            </List>
-          )}
+          <BillsPanel
+            bills={bills}
+            money={money}
+            accountId={account.id}
+            canBill={can(session, 'bill.issue')}
+          />
         </>
       )}
 

@@ -8,15 +8,12 @@
 import Link from 'next/link';
 
 import { ReturnSheet } from '@/components/domain/return-sheet';
-import { Chip, EmptyState, List, PageHeader, RowLink, Screen } from '@/components/ui/layout';
-import { Money, Qty } from '@/components/ui/money';
-import { Segmented } from '@/components/ui/segmented';
+import { SiteBrowser } from '@/components/domain/site-browser';
+import { EmptyState, PageHeader, Screen } from '@/components/ui/layout';
 import { getAccountDetail, listAccounts } from '@/lib/accounts/service';
 import { requireCapability, type StaffSession } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
-import { billedRentByAccount } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
-import { formatDays } from '@/lib/format';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,15 +21,15 @@ export const dynamic = 'force-dynamic';
 export default async function ReturnPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; item?: string; view?: string; q?: string }>;
+  searchParams: Promise<{ account?: string; item?: string }>;
 }) {
   const session = await requirePageSession('/return');
   requireCapability(session, 'movement.create');
 
   const asOf = today();
-  const { account: accountId, item: itemId, view, q } = await searchParams;
+  const { account: accountId, item: itemId } = await searchParams;
 
-  if (!accountId) return <AccountChooser session={session} asOf={asOf} view={view} q={q} />;
+  if (!accountId) return <AccountChooser session={session} asOf={asOf} />;
 
   const detail = await orNotFound(getAccountDetail(session, accountId, asOf));
 
@@ -75,129 +72,33 @@ export default async function ReturnPage({
 async function AccountChooser({
   session,
   asOf,
-  view,
-  q,
 }: {
   session: StaffSession;
   asOf: string;
-  view?: string;
-  q?: string;
 }) {
-  const showReturned = view === 'returned';
-
-  const all = await listAccounts(session, { status: 'open', q }, asOf);
-  const accounts = all.filter((account) =>
-    showReturned ? account.qtyOut === 0 : account.qtyOut > 0,
-  );
-
-  // Counted on the control itself, so the split is visible before tapping —
-  // "3 still out, 12 completed" is the shape of the day at a glance.
-  const outstandingCount = all.filter((account) => account.qtyOut > 0).length;
-  const completedCount = all.length - outstandingCount;
-  const billed = await billedRentByAccount(
-    session,
-    accounts.map((account) => account.id),
-  );
-
-  const tabHref = (target: string) =>
-    q ? `/return?view=${target}&q=${encodeURIComponent(q)}` : `/return?view=${target}`;
+  // Every open khata, out and completed alike — the browser splits them, and
+  // does it on the device so the tabs answer instantly.
+  const rows = await listAccounts(session, { status: 'open' }, asOf);
 
   return (
     <Screen>
-      <PageHeader title="Return" subtitle="Which site is the equipment coming back from?" />
+      <PageHeader title="Returns" />
 
-      <form action="/return" className="mb-3 flex gap-2">
-        {showReturned && <input type="hidden" name="view" value="returned" />}
-        <input
-          type="search"
-          name="q"
-          defaultValue={q ?? ''}
-          placeholder="Customer or site"
-          aria-label="Search sites"
-          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
-        />
-        <button
-          type="submit"
-          className="tap rounded-xl bg-steel px-4 font-semibold text-white hover:bg-steel-strong"
-        >
-          Search
-        </button>
-      </form>
-
-      <Segmented
-        className="mb-4"
-        options={[
-          {
-            href: tabHref('outstanding'),
-            label: 'Still out',
-            active: !showReturned,
-            count: outstandingCount,
-          },
-          {
-            href: tabHref('returned'),
-            label: 'Completed',
-            active: showReturned,
-            count: completedCount,
-          },
-        ]}
+      <SiteBrowser
+        rows={rows}
+        hrefPrefix="/return?account="
+        tabs
+        emptyTitle="Nothing is out anywhere"
+        emptyBody="Every item the yard owns is on the racks."
+        emptyAction={
+          <Link
+            href="/issue"
+            className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
+          >
+            New lending
+          </Link>
+        }
       />
-
-      {accounts.length === 0 ? (
-        <EmptyState
-          title={
-            q
-              ? `Nothing matches “${q}”`
-              : showReturned
-                ? 'No site is fully returned'
-                : 'Nothing is out anywhere'
-          }
-          action={
-            <Link
-              href="/issue"
-              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
-            >
-              Record a lending
-            </Link>
-          }
-        >
-          {showReturned
-            ? 'Sites where every item has come back appear here.'
-            : 'Every item the yard owns is on the racks.'}
-        </EmptyState>
-      ) : (
-        <List>
-          {accounts.map((account) => {
-            const unbilled = account.accruedRent - (billed.get(account.id) ?? 0);
-            return (
-              <li key={account.id}>
-                <RowLink href={`/return?account=${account.id}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-medium">{account.customerName}</span>
-                    <span className="flex shrink-0 items-center gap-1.5">
-                      {account.qtyOut > 0 ? (
-                        <Chip tone="amber">
-                          <Qty qty={account.qtyOut} /> out
-                        </Chip>
-                      ) : (
-                        <Chip tone="green">returned</Chip>
-                      )}
-                      <Chip tone={unbilled > 0 ? 'red' : 'green'}>
-                        {unbilled > 0 ? 'not billed' : 'billed'}
-                      </Chip>
-                    </span>
-                  </div>
-                  <div className="mt-0.5 flex items-baseline justify-between gap-3 text-sm text-ink-2">
-                    <span>{account.siteName}</span>
-                    <span>
-                      <Money paise={account.balance} /> · {formatDays(account.daysOpen)}
-                    </span>
-                  </div>
-                </RowLink>
-              </li>
-            );
-          })}
-        </List>
-      )}
     </Screen>
   );
 }
