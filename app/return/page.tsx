@@ -39,7 +39,7 @@ export default async function ReturnPage({
   return (
     <Screen>
       <PageHeader
-        back={{ href: `/accounts/${accountId}`, label: detail.account.siteName }}
+        back={{ href: '/return', label: 'Returns' }}
         title="Record return"
         subtitle={`${detail.customer.name} · ${detail.account.siteName}`}
       />
@@ -156,7 +156,7 @@ async function AccountChooser({
               href="/issue"
               className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
             >
-              Record a delivery
+              Record a lending
             </Link>
           }
         >

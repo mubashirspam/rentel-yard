@@ -45,7 +45,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const overLimit = customer.creditLimit > 0 && totalOutstanding > customer.creditLimit;
 
   const summary = [
-    `Yard Ledger — ${customer.name}`,
+    `Bismi Rental — ${customer.name}`,
     ...openAccounts.map(
       (account) => `${account.siteName}: ${formatPaise(account.balance)} due, ${account.qtyOut} out`,
     ),
@@ -105,7 +105,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         aside={
           !customer.isBlocked ? (
             <Link href="/issue" className="text-sm font-medium text-steel">
-              Deliver to a site
+              Lend to a site
             </Link>
           ) : undefined
         }

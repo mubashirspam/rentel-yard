@@ -666,6 +666,64 @@ anyway, because a service worker holding a stale bundle is only ever confusing.
 
 ---
 
+## After a week in the owner's hands
+
+### D60. The word is "lend", and the app is Bismi Rental
+
+Third naming pass and the last: the owner lends equipment and takes it back.
+`lib/vocabulary.ts` exists precisely so this costs one file; the `ISSUE`
+movement type and the `/issue` routes are untouched, because renaming a
+movement type rewrites history and renaming a route breaks every link anyone
+has saved.
+
+### D61. A lending belongs to the customer; the site is optional
+
+The owner's correction to the model: a transaction is the *person's*. A site is
+a refinement they may or may not care to make, and forcing one at the counter
+turned a twenty-second lending into a naming exercise.
+
+The schema still wants an account under every movement — it is what a bill is
+drawn against — so "no site" resolves to a **General khata**, created on first
+use by `defaultAccount()`. It is made idempotent by the same
+`(org_id, client_uuid)` unique index the sync push uses, with a deterministic
+key per customer, so two phones tapping *skip* at the same moment converge on
+one khata rather than racing two into existence. A closed General khata is
+quietly reopened: the customer came back.
+
+`default-account.test.ts` covers all three cases against real Postgres.
+
+### D62. Back goes up, never sideways
+
+The loop the owner hit: `/issue` → tap a site → `/issue?account=…` → back →
+**`/accounts/…`** → *Lend more* → `/issue?account=…`. Back was pointing at
+whatever felt related rather than at the level above, so two screens pointed at
+each other.
+
+Every back link now goes up one level *within its own section* — a lending
+screen backs out to lending, a return to returns, an account to accounts. The
+sideways trips that were genuinely useful (account → customer) became buttons,
+which is what they always were.
+
+### D63. The working lists show what is out, not what exists
+
+`/issue` and the home page's active list filter to `qtyOut > 0`. A site that has
+returned everything is not a thing to lend more to today; it is history, and it
+lives under Accounts → All. Its balance still counts in the totals — the money
+is real — but it is off the list a yard works down.
+
+The customer picker opens on who the yard dealt with most recently rather than
+alphabetically, because §08.3's twenty-second lending is a repeat customer.
+
+### D64. Damaged and lost are hidden until asked for
+
+Most lorries bring everything back whole. Two permanently-visible zero rows per
+item made the common case pay a screen-height tax for the rare one, so each item
+shows one **Returned** counter and a "+ Damaged or lost?" link. An item that
+already carries a damaged or lost count shows its rows regardless — a recorded
+number must never be invisible.
+
+---
+
 ## First contact with a real database
 
 Two bugs that every test passed over, found within minutes of pointing the app

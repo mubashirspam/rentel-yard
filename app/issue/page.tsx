@@ -45,13 +45,9 @@ export default async function IssuePage({
   return (
     <Screen>
       <PageHeader
-        title="New delivery"
+        title="New lending"
         subtitle="Equipment leaving the yard. Rent starts on the date you record."
-        back={
-          target
-            ? { href: `/accounts/${target.accountId}`, label: target.siteName }
-            : { href: '/issue', label: 'Deliver' }
-        }
+        back={{ href: '/issue', label: 'Lending' }}
       />
       <IssueForm items={stock} today={asOf} initialTarget={target} />
     </Screen>
@@ -66,16 +62,21 @@ async function ActiveRentals({
   session: StaffSession;
   q?: string;
 }) {
-  const accounts = await listAccounts(session, { status: 'open', q }, today());
+  // Only sites actually holding equipment: this screen answers "who has our
+  // stock and might want more", and a fully-returned site is noise here — it
+  // lives under Accounts → All.
+  const accounts = (await listAccounts(session, { status: 'open', q }, today())).filter(
+    (account) => account.qtyOut > 0,
+  );
 
   return (
     <Screen>
       <PageHeader
-        title="Deliveries"
-        subtitle="Tap a site to deliver more to it"
+        title="Lending"
+        subtitle="Tap a site to lend more to it"
       />
 
-      {/* Both doors, in the open. Delivering to a site that already exists is
+      {/* Both doors, in the open. Lending to a site that already exists is
           the common case and is the list below; the other two were previously
           reachable only from inside the delivery flow, which is where people
           went looking for them and did not find them. */}
@@ -87,7 +88,7 @@ async function ActiveRentals({
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4" aria-hidden>
             <path strokeLinecap="round" d="M12 5v14M5 12h14" />
           </svg>
-          New delivery
+          New lending
         </Link>
         <Link
           href="/customers/new"
@@ -111,7 +112,7 @@ async function ActiveRentals({
         </button>
       </form>
 
-      <SectionTitle tone="steel">Existing sites</SectionTitle>
+      <SectionTitle tone="amber">Lending out now</SectionTitle>
 
       {accounts.length === 0 ? (
         <EmptyState
@@ -121,7 +122,7 @@ async function ActiveRentals({
               href="/issue?new=1"
               className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
             >
-              New delivery
+              New lending
             </Link>
           }
         >
@@ -190,7 +191,7 @@ async function findTarget(
     siteName: detail.account.siteName,
     customerName: detail.customer.name,
     customerMobile: detail.customer.mobile,
-    // What is already on this site. Delivering more without seeing it is how a
+    // What is already on this site. Lending more without seeing it is how a
     // yard sends a second load of jacks to a site that has forty sitting idle.
     outstanding: detail.outstanding.map((line) => ({
       itemName: line.itemName,

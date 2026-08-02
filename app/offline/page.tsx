@@ -7,7 +7,7 @@ import Link from 'next/link';
  * It says what is safe rather than apologising: the queue is on the phone, and
  * the two things a yard worker needs mid-shift still open.
  */
-export const metadata = { title: 'Offline — Yard Ledger' };
+export const metadata = { title: 'Offline — Bismi Rental' };
 
 export default function OfflinePage() {
   return (

@@ -1,4 +1,4 @@
-# Yard Ledger
+# Bismi Rental
 
 Rental management for a construction equipment yard — jacks, spans, sheets,
 cup-lock. An append-only movement ledger with day-wise rent accrual, an
@@ -110,7 +110,7 @@ and everything else hangs off them.
 | | |
 |---|---|
 | `/` | Out on hire, today's gate passes, over-limit customers, stock alerts |
-| `/issue` | Customer → site → date → items, with live availability and a running ₹/day |
+| `/issue` | Customer → site (optional) → date → items, with live availability and a running ₹/day |
 | `/return` | Site → outstanding list → qty in, per line good · damaged · lost |
 | `/accounts/[id]` | The working screen: balance, what is out, actions, full ledger |
 | `/customers` | Search, outstanding per contractor, credit limits |

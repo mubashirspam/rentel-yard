@@ -114,6 +114,14 @@ export function ReturnSheet({
   // derived from what is out, so they are right even when the outstanding list
   // arrives late from the mirror.
   const [drafts, setDrafts] = useState<Record<string, Draft> | null>(null);
+  /*
+   * Damaged and lost stay hidden until asked for. Most lorries bring
+   * everything back whole, and two permanently-visible zero rows per item made
+   * the common case pay a screen-height tax for the rare one. An item that
+   * already carries a damaged or lost count shows its rows regardless — a
+   * recorded number must never be invisible.
+   */
+  const [showDamage, setShowDamage] = useState<Record<string, boolean>>({});
   const [movedAt, setMovedAt] = useState(today);
   const [gatePassNo, setGatePassNo] = useState('');
   const [error, setError] = useState<string>();
@@ -358,10 +366,15 @@ export function ReturnSheet({
                 </div>
 
                 <div className="mt-2 divide-y divide-rule border-t border-rule">
-                  {CONDITIONS.map((condition) => (
+                  {CONDITIONS.filter(
+                    (condition) =>
+                      condition.key === 'good' ||
+                      showDamage[line.itemId] ||
+                      draft[condition.key] > 0,
+                  ).map((condition) => (
                     <ConditionRow
                       key={condition.key}
-                      label={condition.label}
+                      label={condition.key === 'good' ? 'Returned' : condition.label}
                       tone={condition.tone}
                       ring={condition.ring}
                       value={draft[condition.key]}
@@ -375,6 +388,18 @@ export function ReturnSheet({
                       onChange={(value) => set(line.itemId, condition.key, value, line.qtyOut)}
                     />
                   ))}
+
+                  {!showDamage[line.itemId] && draft.damaged === 0 && draft.lost === 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowDamage((all) => ({ ...all, [line.itemId]: true }))
+                      }
+                      className="tap w-full px-3 py-1 text-left text-xs font-semibold text-ink-3 hover:text-ink"
+                    >
+                      + Damaged or lost?
+                    </button>
+                  )}
                 </div>
 
                 <p

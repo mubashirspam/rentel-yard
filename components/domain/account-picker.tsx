@@ -31,6 +31,7 @@ export function AccountPicker({
   const [accounts, setAccounts] = useState<AccountListRow[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -123,6 +124,31 @@ export function AccountPicker({
           </ul>
         </Card>
       )}
+
+      {/* The owner's rule: the transaction is the customer's; a site is
+          optional detail. Skipping lands the lending on their General khata,
+          created once and reused — see defaultAccount. */}
+      <button
+        type="button"
+        disabled={skipping}
+        onClick={async () => {
+          setSkipping(true);
+          setError(undefined);
+          try {
+            const payload = await postJson<{ account: { id: string; siteName: string } }>(
+              '/api/accounts/default',
+              { customerId },
+            );
+            onPick(payload.account);
+          } catch (failure) {
+            setError((failure as Error).message);
+            setSkipping(false);
+          }
+        }}
+        className="tap mb-3 w-full rounded-xl border border-dashed border-rule bg-card px-4 py-2 text-left font-semibold text-ink-2 hover:bg-paper"
+      >
+        {skipping ? 'Opening…' : 'No site — use the general khata'}
+      </button>
 
       {creating ? (
         <NewSiteForm

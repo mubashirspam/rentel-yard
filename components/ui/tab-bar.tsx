@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 /**
  * §08.5: "Bottom tab bar on mobile: Home · Issue · Return · Accounts · More."
- * "Issue" reads as Deliver on screen — see `lib/vocabulary.ts`.
+ * "Issue" reads as Lend on screen — see `lib/vocabulary.ts`.
  *
  * The active tab is a filled pill that **slides** between positions rather than
  * appearing and disappearing. That is not decoration: on a 360px screen with
@@ -25,7 +25,7 @@ const TABS = [
   },
   {
     href: '/issue',
-    label: 'Deliver',
+    label: 'Lend',
     icon: (
       <path d="M4 17V7a1 1 0 0 1 1-1h9v11H4zm10 0h3.5L20 13.5V10h-6v7zm-8.5 3.5A1.75 1.75 0 1 0 5.5 17a1.75 1.75 0 0 0 0 3.5zm11 0A1.75 1.75 0 1 0 16.5 17a1.75 1.75 0 0 0 0 3.5z" />
     ),

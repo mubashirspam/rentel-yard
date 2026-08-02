@@ -168,6 +168,76 @@ export async function openAccount(
 }
 
 /**
+ * The customer's general khata — the account a lending lands on when no site
+ * is named.
+ *
+ * The owner's ruling: a transaction belongs to the *person*; a site is a
+ * refinement they may or may not care to make. The schema still wants an
+ * account under every movement (rightly — it is what a bill is drawn against),
+ * so "no site" means this one, created on first use.
+ *
+ * Get-or-create is made idempotent by the `(org_id, client_uuid)` unique index
+ * with a deterministic key per customer — two phones tapping "skip" at the
+ * same moment converge on one khata instead of racing two into existence. A
+ * closed General khata is quietly reopened: the customer came back.
+ */
+export async function defaultAccount(
+  session: StaffSession,
+  customerId: string,
+  today: string,
+): Promise<AccountRow> {
+  const database = db();
+  const key = `general-${customerId}`;
+
+  await database
+    .insert(schema.accounts)
+    .values({
+      orgId: session.orgId,
+      customerId,
+      siteName: 'General',
+      openedOn: today,
+      clientUuid: key,
+      createdBy: session.userId,
+    })
+    .onConflictDoNothing();
+
+  const [row] = await database
+    .select({
+      id: schema.accounts.id,
+      orgId: schema.accounts.orgId,
+      customerId: schema.accounts.customerId,
+      siteName: schema.accounts.siteName,
+      siteAddress: schema.accounts.siteAddress,
+      status: schema.accounts.status,
+      openedOn: schema.accounts.openedOn,
+      closedOn: schema.accounts.closedOn,
+    })
+    .from(schema.accounts)
+    .where(and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.clientUuid, key)))
+    .limit(1);
+
+  if (row.status === 'closed') {
+    const [reopened] = await database
+      .update(schema.accounts)
+      .set({ status: 'open', closedOn: null })
+      .where(eq(schema.accounts.id, row.id))
+      .returning({
+        id: schema.accounts.id,
+        orgId: schema.accounts.orgId,
+        customerId: schema.accounts.customerId,
+        siteName: schema.accounts.siteName,
+        siteAddress: schema.accounts.siteAddress,
+        status: schema.accounts.status,
+        openedOn: schema.accounts.openedOn,
+        closedOn: schema.accounts.closedOn,
+      });
+    return reopened;
+  }
+
+  return row;
+}
+
+/**
  * Everything the account screen needs, in one replay (§08.2).
  *
  * `asOf` defaults to today. Rent keeps accruing past a bill until the items

@@ -84,7 +84,7 @@ export default async function AccountsPage({
               href="/issue"
               className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
             >
-              Record a delivery
+              Record a lending
             </Link>
           }
         >

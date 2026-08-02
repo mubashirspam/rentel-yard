@@ -26,7 +26,7 @@ export default async function HomePage() {
   return (
     <Screen>
       <PageHeader
-        title="Yard Ledger"
+        title="Bismi Rental"
         subtitle={`${session.name} · ${formatDayFull(asOf)}`}
       />
 
@@ -132,11 +132,11 @@ export default async function HomePage() {
               href="/issue"
               className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
             >
-              Record a delivery
+              Record a lending
             </Link>
           }
         >
-          Deliveries and returns recorded today appear here, grouped by site.
+          Lending and returns recorded today appear here, grouped by site.
         </EmptyState>
       ) : (
         <ul className="space-y-2.5">
@@ -160,7 +160,7 @@ export default async function HomePage() {
                   {site.out.length > 0 && (
                     <div className="mt-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-steel">
-                        Delivered
+                        Lent
                       </p>
                       <ul className="mt-0.5 space-y-0.5">
                         {site.out.map((line, index) => (

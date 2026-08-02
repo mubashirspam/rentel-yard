@@ -60,7 +60,7 @@ export function AccountActions({
           {canPay && (
             <Link
               href={`/payments/new?account=${accountId}`}
-              className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+              className="tap inline-flex items-center gap-1.5 rounded-xl bg-steel px-4 py-2 font-semibold text-white"
             >
               Record payment
             </Link>
@@ -68,7 +68,7 @@ export function AccountActions({
           {canBill && (
             <Link
               href={`/accounts/${accountId}/bill`}
-              className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+              className="tap inline-flex items-center gap-1.5 rounded-xl border border-rule bg-card px-4 py-2 font-semibold"
             >
               Generate bill
             </Link>
@@ -85,20 +85,22 @@ export function AccountActions({
       <div className="flex flex-wrap gap-2">
         <Link
           href={`/issue?account=${accountId}`}
-          className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+          className="tap inline-flex items-center gap-1.5 rounded-xl bg-steel px-4 py-2 font-semibold text-white"
         >
-          Deliver more
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          Lend more
         </Link>
         <Link
           href={`/return?account=${accountId}`}
-          className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+          className="tap inline-flex items-center gap-1.5 rounded-xl border border-rule bg-card px-4 py-2 font-semibold"
         >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
           Record return
         </Link>
         {canPay && (
           <Link
             href={`/payments/new?account=${accountId}`}
-            className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+            className="tap inline-flex items-center gap-1.5 rounded-xl border border-rule bg-card px-4 py-2 font-semibold"
           >
             Record payment
           </Link>
@@ -106,7 +108,7 @@ export function AccountActions({
         {canBill && (
           <Link
             href={`/accounts/${accountId}/bill`}
-            className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+            className="tap inline-flex items-center gap-1.5 rounded-xl border border-rule bg-card px-4 py-2 font-semibold"
           >
             Generate bill
           </Link>

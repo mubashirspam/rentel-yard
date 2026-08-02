@@ -5,7 +5,7 @@
  * usually one per construction site.
  */
 
-import { and, asc, eq, ilike, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
 
 import { listAccounts, rollupByCustomer } from '../accounts/service';
 import type { StaffSession } from '../auth/guard';
@@ -52,6 +52,18 @@ export async function searchCustomers(
     filters.push(or(...matches)!);
   }
 
+  /*
+   * With a search term, alphabetical is right — the admin knows the name and
+   * is narrowing. With no term this is the picker's opening list, and the
+   * useful order is who the yard dealt with most recently: the contractor who
+   * took a load this morning is the one being lent to again this afternoon.
+   */
+  const lastActivity = sql<string>`(
+    select max(m.created_at) from ${schema.movements} m
+    join ${schema.accounts} a on a.id = m.account_id
+    where a.customer_id = ${schema.customers.id}
+  )`;
+
   const customers = await database
     .select({
       id: schema.customers.id,
@@ -62,7 +74,7 @@ export async function searchCustomers(
     })
     .from(schema.customers)
     .where(and(...filters))
-    .orderBy(asc(schema.customers.name))
+    .orderBy(term ? asc(schema.customers.name) : sql`${lastActivity} desc nulls last`)
     .limit(limit);
 
   const rollups = await rollupByCustomer(

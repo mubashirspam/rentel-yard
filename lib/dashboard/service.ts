@@ -189,15 +189,20 @@ export async function getDashboard(
     totals.outstanding += balance;
     accruedOnOpenAccounts += accrual.rentTotal + accrual.damageTotal;
     totals.qtyOut += accountQtyOut;
-    activeSites.push({
-      accountId: account.id,
-      customerId: account.customerId,
-      customerName: account.customerName,
-      siteName: account.siteName,
-      balance,
-      qtyOut: accountQtyOut,
-      perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
-    });
+    // Only sites with equipment out. A completed site still counts in the
+    // totals above — its balance is real — but the working list is what is
+    // physically in the field; the rest is Accounts → All.
+    if (accountQtyOut > 0) {
+      activeSites.push({
+        accountId: account.id,
+        customerId: account.customerId,
+        customerName: account.customerName,
+        siteName: account.siteName,
+        balance,
+        qtyOut: accountQtyOut,
+        perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
+      });
+    }
     balanceByCustomer.set(
       account.customerId,
       (balanceByCustomer.get(account.customerId) ?? 0) + balance,
@@ -365,7 +370,7 @@ function groupBySite(movements: TodayMovement[]): TodaySite[] {
     sites.set(movement.accountId, site);
   }
 
-  // Deliveries before collections: a yard's day runs that way.
+  // Lending before collections: a yard's day runs that way.
   return [...sites.values()].sort((a, b) => b.out.length - a.out.length);
 }
 

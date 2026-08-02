@@ -13,7 +13,6 @@ import { AddCharge } from '@/components/domain/add-charge';
 import { BalanceCard } from '@/components/domain/balance-card';
 import { LedgerList } from '@/components/domain/ledger-list';
 import { OutstandingList } from '@/components/domain/outstanding-list';
-import { WhatsAppComposer } from '@/components/domain/whatsapp-composer';
 import { Card, Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
 import { Money } from '@/components/ui/money';
 import { differenceInCalendarDays } from '@/lib/accrual';
@@ -23,7 +22,7 @@ import { orNotFound, requirePageSession } from '@/lib/auth/page';
 import { listBillsForAccount } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
 import { formatDay, formatDayFull, formatDays, formatMobile, formatMonth, telHref, waHref } from '@/lib/format';
-import { statementMessage, type MessageTemplate } from '@/lib/messages';
+import { statementMessage } from '@/lib/messages';
 import { orgName } from '@/lib/org';
 import { getMoneySummary } from '@/lib/payments/service';
 
@@ -67,8 +66,6 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
     asOf,
   });
 
-  const templates: MessageTemplate[] = [{ id: 'statement', label: 'Statement', text: statement }];
-
   const billedThisMonth = bills
     .filter((bill) => bill.issuedAt.slice(0, 7) === asOf.slice(0, 7))
     .reduce((sum, bill) => sum + bill.grandTotal, 0);
@@ -76,7 +73,7 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
   return (
     <Screen>
       <PageHeader
-        back={{ href: `/customers/${customer.id}`, label: customer.name }}
+        back={{ href: '/accounts', label: 'Accounts' }}
         title={account.siteName}
         subtitle={
           <>
@@ -102,22 +99,37 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
       />
 
       {/* Tap to call, tap to WhatsApp — the two things an admin does with a
-          contractor's number while standing at the gate (§08.2). */}
+          contractor's number while standing at the gate (§08.2). The WhatsApp
+          button carries the ready-made statement; there is no composer on this
+          screen, because editing a message is the rare case and belongs under
+          More. */}
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <a
           href={telHref(customer.mobile)}
-          className="tap inline-flex items-center rounded border border-rule bg-card px-3 font-medium"
+          className="tap inline-flex items-center gap-1.5 rounded-xl border border-rule bg-card px-3 font-semibold"
         >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
+            <path d="M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .57 3.6 1 1 0 0 1-.25 1z" />
+          </svg>
           Call {formatMobile(customer.mobile)}
         </a>
         <a
           href={waHref(customer.mobile, statement)}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded border border-rule bg-card px-3 font-medium"
+          className="tap inline-flex items-center gap-1.5 rounded-xl bg-green px-3 font-semibold text-white"
         >
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden>
+            <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.4 14.1c-.23.64-1.33 1.22-1.84 1.27-.5.05-1.13.24-3.8-.8-3.2-1.26-5.24-4.53-5.4-4.74-.16-.21-1.3-1.73-1.3-3.3s.82-2.34 1.11-2.66c.29-.32.63-.4.84-.4h.6c.2 0 .46-.07.71.55l.98 2.36c.08.18.14.4.03.63l-.4.6-.56.6c-.17.18-.36.37-.16.72.2.35.9 1.5 1.94 2.42 1.33 1.19 2.45 1.56 2.8 1.73.35.18.55.15.76-.09l1.16-1.35c.27-.32.5-.25.85-.15l2.26.9c.35.17.58.26.67.4.08.15.08.85-.15 1.5z" />
+          </svg>
           WhatsApp
         </a>
+        <Link
+          href={`/customers/${customer.id}`}
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-3 font-semibold"
+        >
+          Customer
+        </Link>
       </div>
 
       {showMoney && (
@@ -208,13 +220,13 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
       ) : (
         <EmptyState title="Nothing is out on this site">
           {account.status === 'open'
-            ? 'Everything delivered here has come back. Deliver more to start it up again.'
+            ? 'Everything lent from here has come back. Lend more to start it up again.'
             : 'The site was closed once everything was returned.'}
           {account.status === 'open' && (
             <>
               {' '}
               <Link href={`/issue?account=${account.id}`} className="font-medium text-steel">
-                Deliver equipment
+                Lend equipment
               </Link>
             </>
           )}
@@ -292,9 +304,6 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
           Every issue, return, payment, and correction on this site will appear here, newest first.
         </EmptyState>
       )}
-
-      <SectionTitle tone="steel">Send a message</SectionTitle>
-      <WhatsAppComposer mobile={customer.mobile} templates={templates} title="Statement" />
 
       {accrual.damageLines.length > 0 && (
         <p className="mt-4 text-xs text-ink-3">

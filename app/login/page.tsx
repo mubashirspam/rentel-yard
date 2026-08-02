@@ -67,7 +67,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <main className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-5 py-12">
-      <h1 className="mb-1 text-2xl font-bold tracking-tight">Yard Ledger</h1>
+      <h1 className="mb-1 text-2xl font-bold tracking-tight">Bismi Rental</h1>
       <p className="mb-8 text-sm text-ink-2">Sign in to record issues, returns, and payments.</p>
 
       <div className="rounded border border-rule bg-card p-5">

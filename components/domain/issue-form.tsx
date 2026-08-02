@@ -192,7 +192,7 @@ export function IssueForm({
     return (
       <section>
         <Answered label={customer.name} onChange={() => setCustomer(null)} />
-        <SectionTitle>Which site?</SectionTitle>
+        <SectionTitle>Which site? <span className="normal-case text-ink-3">(optional)</span></SectionTitle>
         <AccountPicker
           customerId={customer.id}
           customerName={customer.name}
@@ -389,7 +389,7 @@ function Answered({ label, onChange }: { label: string; onChange?: () => void })
 /** §08.3 result step — gate pass number, share on WhatsApp, print. */
 function IssueReceipt({ committed, target }: { committed: Committed; target: IssueTarget }) {
   const summary = [
-    `Yard Ledger — issued to ${target.siteName} on ${formatDayFull(committed.movedAt)}`,
+    `Bismi Rental — lent to ${target.siteName} on ${formatDayFull(committed.movedAt)}`,
     ...committed.lines.map((line) => `${line.qty} × ${line.name}`),
     committed.gatePassNo ? `Gate pass ${committed.gatePassNo}` : null,
   ]

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { getJson, postJson } from '@/lib/api/client';
 import { mirrorCustomers } from '@/lib/sync/queries';
@@ -20,6 +20,23 @@ import { Card } from '../ui/layout';
 export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary) => void }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CustomerSummary[]>([]);
+
+  // Open with the people the yard worked with most recently, not a blank box —
+  // the repeat customer is the twenty-second case §08.3 is written around.
+  useEffect(() => {
+    let cancelled = false;
+    getJson<{ customers: CustomerSummary[] }>('/api/customers?limit=8')
+      .then((payload) => {
+        if (!cancelled && payload.customers.length > 0) setResults(payload.customers);
+      })
+      .catch(() => {
+        // Offline or failing: the search box still works, and the mirror path
+        // in search() covers the no-signal case.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [searched, setSearched] = useState(false);
   const [creating, setCreating] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -86,6 +103,12 @@ export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary)
       {offline && (
         <p className="mb-3 text-sm text-amber">
           No signal — searching this phone&apos;s copy. Balances are not shown offline.
+        </p>
+      )}
+
+      {results.length > 0 && !searched && (
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-3">
+          Recently worked with
         </p>
       )}
 

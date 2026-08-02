@@ -5,7 +5,7 @@ import { InstallPrompt } from '@/components/ui/install-prompt';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Yard Ledger',
+  title: 'Bismi Rental',
   description: 'Rental management for a construction equipment yard.',
 };
 
