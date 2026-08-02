@@ -130,7 +130,7 @@ export default async function HomePage() {
           action={
             <Link
               href="/issue"
-              className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
             >
               Record a lending
             </Link>

@@ -200,7 +200,7 @@ function NewSiteForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-card p-4">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-card p-4">
       <FormError>{error}</FormError>
 
       <TextInput

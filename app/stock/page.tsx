@@ -33,7 +33,7 @@ export default async function StockPage() {
           can(session, 'item.manage') ? (
             <Link
               href="/items"
-              className="tap inline-flex items-center rounded border border-rule bg-card px-3 font-medium"
+              className="tap inline-flex items-center rounded-xl border border-rule bg-card px-3 font-medium"
             >
               Items
             </Link>
@@ -68,7 +68,7 @@ export default async function StockPage() {
             can(session, 'item.manage') ? (
               <Link
                 href="/items"
-                className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+                className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
               >
                 Add items
               </Link>

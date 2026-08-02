@@ -96,7 +96,7 @@ export function CustomerForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-card p-5">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-card p-5">
       <FormError>{error}</FormError>
 
       <TextInput id="customer-name" label="Name" required {...field('name')} />

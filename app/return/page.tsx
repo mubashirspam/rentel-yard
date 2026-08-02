@@ -50,7 +50,7 @@ export default async function ReturnPage({
           action={
             <Link
               href={`/accounts/${accountId}`}
-              className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+              className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
             >
               Back to the account
             </Link>

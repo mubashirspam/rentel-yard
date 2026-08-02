@@ -91,9 +91,9 @@ export function CustomerPicker({ onPick }: { onPick: (customer: CustomerSummary)
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Name or mobile"
           aria-label="Search customers"
-          className="tap w-full rounded border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
         />
-        <button type="submit" disabled={busy} className="tap rounded bg-steel px-4 font-medium text-white">
+        <button type="submit" disabled={busy} className="tap rounded-xl bg-steel px-4 font-medium text-white">
           {busy ? '…' : 'Search'}
         </button>
       </form>
@@ -198,7 +198,7 @@ function NewCustomerForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-card p-4">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-card p-4">
       <FormError>{error}</FormError>
 
       <TextInput

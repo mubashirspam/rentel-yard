@@ -142,7 +142,7 @@ function ReverseForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-paper p-3">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-paper p-3">
       <p className="mb-3 text-sm text-ink-2">
         The original entry stays in the ledger. This adds a reversal that cancels it.
       </p>

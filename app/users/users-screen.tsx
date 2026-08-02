@@ -29,7 +29,7 @@ export function UsersScreen({
         subtitle="Admins run the yard. Super admins also set item rates, billing rules, and who can sign in."
       />
 
-      <ul className="mb-6 divide-y divide-rule rounded border border-rule bg-card">
+      <ul className="mb-6 divide-y divide-rule rounded-xl border border-rule bg-card">
         {users.map((user) => (
           <UserRow
             key={user.id}
@@ -95,7 +95,7 @@ function UserRow({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="font-medium">{user.name}</span>
         {!user.isActive && (
-          <span className="rounded bg-paper px-2 py-0.5 text-xs text-ink-3">Deactivated</span>
+          <span className="rounded-xl bg-paper px-2 py-0.5 text-xs text-ink-3">Deactivated</span>
         )}
         {isSelf && <span className="text-xs text-ink-3">you</span>}
       </div>
@@ -103,7 +103,7 @@ function UserRow({
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <select
-          className="tap rounded border border-rule bg-card px-2 text-sm"
+          className="tap appearance-none rounded-xl border border-rule bg-card px-3 pr-8 text-sm"
           value={user.role}
           disabled={busy}
           onChange={(e) => patch({ role: e.target.value as StaffMember['role'] })}
@@ -164,7 +164,7 @@ function AddUserForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-card p-5">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-card p-5">
       <h2 className="mb-4 text-lg font-semibold">Add a user</h2>
       <FormError>{error}</FormError>
 

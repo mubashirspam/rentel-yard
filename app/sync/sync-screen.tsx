@@ -12,7 +12,7 @@ import { formatWhen } from '@/lib/format';
 /**
  * §13 M5: "/sync screen: pending, rejected, force sync, last sync time."
  *
- * The honest-offline contract in one page. Nothing here is hidden or rounded
+ * The honest-offline contract in one page. Nothing here is hidden or rounded-xl
  * off: if four gate passes are sitting on this phone, it says four, and it says
  * why the fifth was refused.
  */

@@ -27,7 +27,7 @@ export function ItemsScreen({ initialItems }: { initialItems: StockRow[] }) {
 
   return (
     <>
-      <p className="mb-4 rounded border border-rule bg-card p-4 text-sm text-ink-2">
+      <p className="mb-4 rounded-xl border border-rule bg-card p-4 text-sm text-ink-2">
         A rate change applies to equipment issued from now on. Anything already out keeps the rate it
         left the yard at, so no bill can change under a contractor.
       </p>
@@ -258,7 +258,7 @@ function NewItemForm({
   }
 
   return (
-    <form onSubmit={submit} noValidate className="rounded border border-rule bg-card p-5">
+    <form onSubmit={submit} noValidate className="rounded-2xl border border-rule bg-card p-5">
       <FormError>{error}</FormError>
 
       <TextInput id="new-item-name" label="Name" required {...field('name')} />

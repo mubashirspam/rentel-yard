@@ -68,7 +68,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
       <div className="mb-4 flex flex-wrap gap-2 text-sm">
         <a
           href={telHref(customer.mobile)}
-          className="tap inline-flex items-center rounded border border-rule bg-card px-3 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-3 font-medium"
         >
           Call
         </a>
@@ -76,7 +76,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           href={waHref(customer.mobile, summary)}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded border border-rule bg-card px-3 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-3 font-medium"
         >
           WhatsApp summary
         </a>

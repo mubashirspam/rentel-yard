@@ -260,7 +260,7 @@ export function IssueForm({
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Filter items"
         aria-label="Filter items"
-        className="tap mb-3 w-full rounded border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+        className="tap mb-3 w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
       />
 
       <Card>
@@ -337,7 +337,7 @@ export function IssueForm({
       )}
 
       {/* §08.3: "running total of rent/day shown as items are added". */}
-      <div className="sticky bottom-16 mt-4 rounded border border-rule bg-card p-4">
+      <div className="sticky bottom-16 mt-4 rounded-2xl border border-rule bg-card p-4">
         {chosen.length === 0 ? (
           <p className="text-sm text-ink-2">Add a quantity against an item to continue.</p>
         ) : (
@@ -582,7 +582,7 @@ function NewCustomerInline({
 
 function Answered({ label, onChange }: { label: string; onChange?: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded border border-rule bg-card px-4 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-rule bg-card px-4 py-2">
       <span className="truncate font-medium">{label}</span>
       {onChange && (
         <button type="button" onClick={onChange} className="tap px-2 text-sm font-medium text-steel">
@@ -654,20 +654,20 @@ function IssueReceipt({ committed, target }: { committed: Committed; target: Iss
           href={waHref(target.customerMobile, summary)}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+          className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
         >
           Share on WhatsApp
         </a>
         <PrintButton />
         <Link
           href={`/accounts/${target.accountId}`}
-          className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
         >
           Open the account
         </Link>
         <Link
           href="/issue"
-          className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
         >
           Issue again
         </Link>
@@ -681,7 +681,7 @@ function PrintButton() {
     <button
       type="button"
       onClick={() => window.print()}
-      className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+      className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
     >
       Print
     </button>

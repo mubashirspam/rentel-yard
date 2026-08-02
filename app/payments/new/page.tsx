@@ -80,7 +80,7 @@ async function AccountChooser({
           action={
             <Link
               href="/accounts"
-              className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+              className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
             >
               All accounts
             </Link>

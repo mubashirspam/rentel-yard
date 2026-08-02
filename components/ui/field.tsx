@@ -5,9 +5,17 @@
 
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react';
 
+/**
+ * One shape for everything you type into or choose from.
+ *
+ * `rounded-xl` matches the tiles and the app bar; a 4px input beside a 16px
+ * card is the difference between an app and a web form. A native `<select>`
+ * ignores most of this on iOS unless `appearance-none` takes its chrome away,
+ * so the chevron below is drawn by us and the box is identical to a text field.
+ */
 const CONTROL =
   'tap w-full rounded-xl border border-rule bg-card px-3 py-2 text-base text-ink ' +
-  'outline-none focus:border-steel focus:ring-2 focus:ring-steel/25 ' +
+  'outline-none transition-colors focus:border-steel focus:ring-2 focus:ring-steel/25 ' +
   'disabled:bg-paper disabled:text-ink-3';
 
 export function Label({ htmlFor, children }: { htmlFor: string; children: ReactNode }) {
@@ -60,9 +68,28 @@ export function Select({
   return (
     <div className="mb-4">
       <Label htmlFor={id}>{label}</Label>
-      <select id={id} className={CONTROL} {...props}>
-        {children}
-      </select>
+
+      <div className="relative">
+        <select id={id} className={`${CONTROL} appearance-none pr-10`} {...props}>
+          {children}
+        </select>
+
+        {/* Ours, not the platform's — so the field is the same box as a text
+            input on every phone in the yard. */}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
+
       <FieldError>{error}</FieldError>
     </div>
   );

@@ -100,7 +100,7 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
           href={`/api/bills/${bill.id}/pdf`}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+          className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
         >
           PDF (A4)
         </a>
@@ -108,14 +108,14 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
           href={`/api/bills/${bill.id}/pdf?format=thermal`}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
         >
           PDF (80mm)
         </a>
         {bill.outstanding > 0 && (
           <Link
             href={`/payments/new?account=${bill.account.id}`}
-            className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+            className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
           >
             Record payment
           </Link>

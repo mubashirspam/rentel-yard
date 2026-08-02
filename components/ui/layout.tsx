@@ -72,7 +72,7 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="sticky top-0 z-20 -mx-4 mb-3 border-b border-rule bg-card/95 px-4 backdrop-blur">
+    <div className="sticky top-0 z-20 -mx-4 mb-3 rounded-b-2xl border-b border-rule bg-card/95 px-4 backdrop-blur">
       <div className="flex h-14 items-center gap-2">
         {back && (
           <Link

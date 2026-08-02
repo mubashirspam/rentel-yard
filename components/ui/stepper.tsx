@@ -33,7 +33,7 @@ export function QtyStepper({
         aria-label={`One fewer ${label}`}
         disabled={value <= 0}
         onClick={() => onChange(clamp(value - 1))}
-        className="tap rounded border border-rule bg-card text-xl font-medium text-ink disabled:opacity-40"
+        className="tap rounded-xl border border-rule bg-card text-xl font-medium text-ink disabled:opacity-40"
       >
         −
       </button>
@@ -45,14 +45,14 @@ export function QtyStepper({
         value={value === 0 ? '' : String(value)}
         placeholder="0"
         onChange={(event) => onChange(clamp(Number(event.target.value.replace(/\D/g, ''))))}
-        className="tap w-16 rounded border border-rule bg-card px-2 text-center text-base tabular text-ink outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+        className="tap w-16 rounded-xl border border-rule bg-card px-2 text-center text-base tabular text-ink outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
       />
       <button
         type="button"
         aria-label={`One more ${label}`}
         disabled={max !== undefined && value >= max}
         onClick={() => onChange(clamp(value + 1))}
-        className="tap rounded border border-rule bg-card text-xl font-medium text-ink disabled:opacity-40"
+        className="tap rounded-xl border border-rule bg-card text-xl font-medium text-ink disabled:opacity-40"
       >
         +
       </button>

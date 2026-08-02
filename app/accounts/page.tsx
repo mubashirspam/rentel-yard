@@ -52,9 +52,9 @@ export default async function AccountsPage({
           defaultValue={q ?? ''}
           placeholder="Customer or site"
           aria-label="Search accounts"
-          className="tap w-full rounded border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+          className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
         />
-        <button type="submit" className="tap rounded bg-steel px-4 font-medium text-white">
+        <button type="submit" className="tap rounded-xl bg-steel px-4 font-medium text-white">
           Search
         </button>
       </form>
@@ -81,7 +81,7 @@ export default async function AccountsPage({
           action={
             <Link
               href="/issue"
-              className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+              className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
             >
               Record a lending
             </Link>

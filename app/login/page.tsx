@@ -70,7 +70,7 @@ export default function LoginPage() {
       <h1 className="mb-1 text-2xl font-bold tracking-tight">Bismi Rental</h1>
       <p className="mb-8 text-sm text-ink-2">Sign in to record issues, returns, and payments.</p>
 
-      <div className="rounded border border-rule bg-card p-5">
+      <div className="rounded-2xl border border-rule bg-card p-5">
         <Suspense fallback={null}>
           <LoginForm />
         </Suspense>

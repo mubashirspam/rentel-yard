@@ -212,7 +212,7 @@ export function PaymentForm({
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href={`/accounts/${accountId}`}
-            className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+            className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
           >
             Back to the account
           </Link>
@@ -224,7 +224,7 @@ export function PaymentForm({
               setReference('');
               setRemarks('');
             }}
-            className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+            className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
           >
             Record another
           </button>

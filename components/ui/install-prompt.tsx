@@ -56,14 +56,14 @@ export function InstallPrompt() {
             await event.userChoice;
             dismiss();
           }}
-          className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+          className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
         >
           Install
         </button>
         <button
           type="button"
           onClick={dismiss}
-          className="tap inline-flex items-center rounded border border-rule px-4 py-2 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule px-4 py-2 font-medium"
         >
           Not now
         </button>

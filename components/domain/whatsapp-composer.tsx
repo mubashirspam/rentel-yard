@@ -49,7 +49,7 @@ export function WhatsAppComposer({
               type="button"
               onClick={() => choose(template)}
               aria-pressed={template.id === selected}
-              className={`tap rounded border px-3 text-sm font-medium ${
+              className={`tap rounded-xl border px-3 text-sm font-medium ${
                 template.id === selected
                   ? 'border-steel bg-steel-soft text-steel'
                   : 'border-rule bg-card text-ink-2'
@@ -72,7 +72,7 @@ export function WhatsAppComposer({
           setText(event.target.value);
           setCopied(false);
         }}
-        className="mb-3 w-full rounded border border-rule bg-card px-3 py-2 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+        className="mb-3 w-full rounded-xl border border-rule bg-card px-3 py-2 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
       />
 
       <div className="flex flex-wrap gap-2">
@@ -80,7 +80,7 @@ export function WhatsAppComposer({
           href={waHref(mobile, text)}
           target="_blank"
           rel="noreferrer"
-          className="tap inline-flex items-center rounded bg-steel px-4 py-2 font-medium text-white"
+          className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-medium text-white"
         >
           Open WhatsApp
         </a>
@@ -90,7 +90,7 @@ export function WhatsAppComposer({
             await navigator.clipboard.writeText(text);
             setCopied(true);
           }}
-          className="tap inline-flex items-center rounded border border-rule bg-card px-4 py-2 font-medium"
+          className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
         >
           {copied ? 'Copied' : 'Copy text'}
         </button>
