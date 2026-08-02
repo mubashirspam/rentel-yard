@@ -37,19 +37,35 @@ export default async function IssuePage({
     return <ActiveRentals session={session} q={q} />;
   }
 
-  const [stock, target] = await Promise.all([
+  const [stock, target, targets] = await Promise.all([
     listStock(session),
     accountId ? findTarget(session, accountId, asOf) : Promise.resolve(undefined),
+    // Every open khata, rendered into the picker at the top of the form. Sent
+    // with the page so choosing a customer and site costs no round trip and no
+    // second screen — the whole lending is one page.
+    accountId ? Promise.resolve([]) : listAccounts(session, { status: 'open' }, asOf),
   ]);
 
   return (
     <Screen>
       <PageHeader
         title="New lending"
-        subtitle="Equipment leaving the yard. Rent starts on the date you record."
+        subtitle="Pick who it is going to, then what is going out."
         back={{ href: '/issue', label: 'Lending' }}
       />
-      <IssueForm items={stock} today={asOf} initialTarget={target} />
+      <IssueForm
+        items={stock}
+        today={asOf}
+        initialTarget={target}
+        targets={targets.map((account) => ({
+          accountId: account.id,
+          customerId: account.customerId,
+          siteName: account.siteName,
+          customerName: account.customerName,
+          customerMobile: account.customerMobile,
+          qtyOut: account.qtyOut,
+        }))}
+      />
     </Screen>
   );
 }

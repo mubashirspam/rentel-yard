@@ -676,6 +676,23 @@ movement type and the `/issue` routes are untouched, because renaming a
 movement type rewrites history and renaming a route breaks every link anyone
 has saved.
 
+### D65. A lending is one page, not three screens
+
+The flow was customer → site → items, each screen replacing the last. For a
+repeat customer — §08.3's twenty-second lending — that is two navigations
+before a single jack can be counted, and no way to see what you picked while
+picking the rest.
+
+Now the target picker sits at the top of the same page the items are on. It
+collapses to one line once answered and reopens on *Change*. Creating a
+customer happens inline and lands them on their General khata (D61) in the same
+tap, so "new contractor, five jacks, go" never leaves the page.
+
+The open khatas are rendered *with* the page rather than fetched, so filtering
+is instant and works with no signal — only creating something needs the
+network. `AccountPicker` and `CustomerPicker` survive for /return's chooser and
+the customer screen; they are simply no longer in this path.
+
 ### D61. A lending belongs to the customer; the site is optional
 
 The owner's correction to the model: a transaction is the *person's*. A site is

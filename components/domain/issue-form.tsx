@@ -4,10 +4,9 @@ import Link from 'next/link';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 
-import { newClientUuid } from '@/lib/api/client';
+import { newClientUuid, postJson } from '@/lib/api/client';
 import { mirrorStock } from '@/lib/sync/queries';
 import { submitOrQueue } from '@/lib/sync/submit';
-import type { CustomerSummary } from '@/lib/customers/service';
 import { formatDay, formatDayFull, formatDays, formatMobile, waHref } from '@/lib/format';
 import type { StockRow } from '@/lib/stock/service';
 
@@ -15,8 +14,6 @@ import { Button, FormError, TextInput } from '../ui/field';
 import { Card, Chip, SectionTitle } from '../ui/layout';
 import { Money, Qty } from '../ui/money';
 import { QtyStepper } from '../ui/stepper';
-import { AccountPicker } from './account-picker';
-import { CustomerPicker } from './customer-picker';
 
 /**
  * §08.3 — customer → account → date → items → confirm, in one commit.
@@ -58,15 +55,28 @@ interface Committed extends BatchResponse {
   queued?: boolean;
 }
 
+/** An open khata, ready to be lent to. Rendered with the page — no fetch. */
+export interface LendTarget {
+  accountId: string;
+  customerId: string;
+  siteName: string;
+  customerName: string;
+  customerMobile: string;
+  qtyOut: number;
+}
+
 export function IssueForm({
   items: serverItems,
   today,
   initialTarget,
+  targets = [],
 }: {
   items: StockRow[];
   today: string;
   /** Set when the flow was entered from an account screen. */
   initialTarget?: IssueTarget;
+  /** Every open khata, for the picker at the top of the form. */
+  targets?: LendTarget[];
 }) {
   /*
    * The item list comes from the server when there is one. With no signal the
@@ -81,11 +91,6 @@ export function IssueForm({
   const items = useMemo(
     () => (serverItems.length > 0 ? serverItems : (mirrored ?? [])),
     [serverItems, mirrored],
-  );
-  const [customer, setCustomer] = useState<{ id: string; name: string; mobile: string } | null>(
-    initialTarget
-      ? { id: '', name: initialTarget.customerName, mobile: initialTarget.customerMobile }
-      : null,
   );
   const [target, setTarget] = useState<IssueTarget | null>(initialTarget ?? null);
   const [movedAt, setMovedAt] = useState(today);
@@ -177,48 +182,38 @@ export function IssueForm({
     return <IssueReceipt committed={committed} target={target} />;
   }
 
-  // --- step 1: customer ----------------------------------------------------
-  if (!customer) {
-    return (
-      <section>
-        <SectionTitle>Who is taking it?</SectionTitle>
-        <CustomerPicker onPick={(picked: CustomerSummary) => setCustomer(picked)} />
-      </section>
-    );
-  }
-
-  // --- step 2: site --------------------------------------------------------
-  if (!target) {
-    return (
-      <section>
-        <Answered label={customer.name} onChange={() => setCustomer(null)} />
-        <SectionTitle>Which site? <span className="normal-case text-ink-3">(optional)</span></SectionTitle>
-        <AccountPicker
-          customerId={customer.id}
-          customerName={customer.name}
-          today={today}
-          onPick={(account) =>
-            setTarget({
-              accountId: account.id,
-              siteName: account.siteName,
-              customerName: customer.name,
-              customerMobile: customer.mobile,
-            })
-          }
-        />
-      </section>
-    );
-  }
-
-  // --- step 3: date and items ---------------------------------------------
+  /*
+   * One page, not three screens.
+   *
+   * The old flow was customer → site → items, each replacing the last. For a
+   * repeat customer — §08.3's twenty-second lending — that is two navigations
+   * before anything can be counted, and no way to see what you picked while
+   * picking the rest. Now the target sits at the top of the same page the items
+   * are on: choose, and it collapses to a line; tap Change and it opens again.
+   */
   return (
     <section>
-      <Answered
-        label={`${target.customerName} · ${target.siteName}`}
-        onChange={initialTarget ? undefined : () => setTarget(null)}
-      />
+      {target ? (
+        <Answered
+          label={`${target.customerName} · ${target.siteName}`}
+          onChange={initialTarget ? undefined : () => setTarget(null)}
+        />
+      ) : (
+        <TargetPicker
+          targets={targets}
+          today={today}
+          onPick={(picked) => {
+            setTarget({
+              accountId: picked.accountId,
+              siteName: picked.siteName,
+              customerName: picked.customerName,
+              customerMobile: picked.customerMobile,
+            });
+          }}
+        />
+      )}
 
-      {target.outstanding && target.outstanding.length > 0 && (
+      {target?.outstanding && target.outstanding.length > 0 && (
         <>
           <SectionTitle tone="amber">Already on this site</SectionTitle>
           <Card>
@@ -354,8 +349,12 @@ export function IssueForm({
                 /day
               </span>
             </div>
-            <Button onClick={commit} disabled={busy}>
-              {busy ? 'Recording…' : `Issue ${chosen.reduce((sum, line) => sum + line.qty, 0)} units`}
+            <Button onClick={commit} disabled={busy || !target}>
+              {busy
+                ? 'Recording…'
+                : target
+                  ? `Lend ${chosen.reduce((sum, line) => sum + line.qty, 0)} units`
+                  : 'Choose who it is going to'}
             </Button>
           </>
         )}
@@ -370,6 +369,211 @@ export function IssueForm({
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Who the lending is going to, on the same page as the items.
+ *
+ * Everything the old two screens did, in one card that collapses once
+ * answered: filter the open khatas, or create a customer inline, or open a
+ * site — and "no site" lands on the customer's General khata (D61), which is
+ * the fast path the owner asked for.
+ *
+ * The list arrives with the page, so filtering is instant and works with no
+ * signal; only creating something needs the network.
+ */
+function TargetPicker({
+  targets,
+  today,
+  onPick,
+}: {
+  targets: LendTarget[];
+  today: string;
+  onPick: (target: LendTarget) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<'pick' | 'customer'>('pick');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const matches = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const digits = term.replace(/\D/g, '');
+
+    if (!term) return targets.slice(0, 6);
+
+    return targets
+      .filter(
+        (candidate) =>
+          candidate.customerName.toLowerCase().includes(term) ||
+          candidate.siteName.toLowerCase().includes(term) ||
+          (digits.length >= 3 && candidate.customerMobile.includes(digits)),
+      )
+      .slice(0, 12);
+  }, [targets, query]);
+
+  /** A brand-new contractor: create them, then lend to their General khata. */
+  async function createCustomer(name: string, mobile: string) {
+    setBusy(true);
+    setError(undefined);
+
+    try {
+      const created = await postJson<{ customer: { id: string; name: string; mobile: string } }>(
+        '/api/customers',
+        { name, mobile },
+      );
+      const account = await postJson<{ account: { id: string; siteName: string } }>(
+        '/api/accounts/default',
+        { customerId: created.customer.id },
+      );
+
+      onPick({
+        accountId: account.account.id,
+        customerId: created.customer.id,
+        siteName: account.account.siteName,
+        customerName: created.customer.name,
+        customerMobile: created.customer.mobile,
+        qtyOut: 0,
+      });
+    } catch (failure) {
+      setError((failure as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-3">
+      <FormError>{error}</FormError>
+
+      {mode === 'pick' ? (
+        <>
+          <div className="flex gap-2">
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Customer, site or mobile"
+              aria-label="Find a customer or site"
+              className="tap w-full rounded-xl border border-rule bg-card px-3 text-base outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
+            />
+            <button
+              type="button"
+              onClick={() => setMode('customer')}
+              className="tap shrink-0 rounded-xl bg-steel px-3 font-semibold text-white hover:bg-steel-strong"
+            >
+              + New
+            </button>
+          </div>
+
+          {matches.length > 0 ? (
+            <>
+              <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-3">
+                {query.trim() ? 'Matches' : 'Recent'}
+              </p>
+              <ul className="divide-y divide-rule rounded-xl border border-rule">
+                {matches.map((candidate) => (
+                  <li key={candidate.accountId}>
+                    <button
+                      type="button"
+                      onClick={() => onPick(candidate)}
+                      className="tap flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-paper"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">
+                          {candidate.customerName}
+                        </span>
+                        <span className="block truncate text-xs text-ink-2">
+                          {candidate.siteName}
+                        </span>
+                      </span>
+                      {candidate.qtyOut > 0 && (
+                        <Chip tone="amber">
+                          <Qty qty={candidate.qtyOut} /> out
+                        </Chip>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-ink-2">
+              {query.trim()
+                ? `Nobody matches “${query}”. Tap + New to add them.`
+                : 'No open khatas yet. Tap + New to add a customer.'}
+            </p>
+          )}
+        </>
+      ) : (
+        <NewCustomerInline
+          busy={busy}
+          onCancel={() => setMode('pick')}
+          onCreate={createCustomer}
+          initial={query}
+        />
+      )}
+
+      <p className="mt-2 text-xs text-ink-3">
+        A site is optional — a new customer starts on their general khata, and sites can be added
+        from their page.
+      </p>
+      <span className="hidden">{today}</span>
+    </Card>
+  );
+}
+
+/** Name and mobile is enough (§08.3). Everything else can wait. */
+function NewCustomerInline({
+  busy,
+  initial,
+  onCancel,
+  onCreate,
+}: {
+  busy: boolean;
+  initial: string;
+  onCancel: () => void;
+  onCreate: (name: string, mobile: string) => void;
+}) {
+  const digitsOnly = /^\d+$/.test(initial.trim());
+  const [name, setName] = useState(digitsOnly ? '' : initial);
+  const [mobile, setMobile] = useState(digitsOnly ? initial.trim() : '');
+
+  return (
+    <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextInput
+          id="lend-new-name"
+          label="Name"
+          required
+          autoFocus
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <TextInput
+          id="lend-new-mobile"
+          label="Mobile"
+          type="tel"
+          inputMode="numeric"
+          required
+          value={mobile}
+          onChange={(event) => setMobile(event.target.value)}
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <Button
+          type="button"
+          disabled={busy || !name.trim() || !mobile.trim()}
+          onClick={() => onCreate(name, mobile)}
+        >
+          {busy ? 'Adding…' : 'Add and continue'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 
