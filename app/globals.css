@@ -71,3 +71,45 @@ body {
     transition-duration: 150ms;
   }
 }
+
+/*
+ * Login background only.
+ *
+ * §08.5 caps animation at 150ms state transitions, and that rule holds for
+ * every working screen — a yard admin should never wait on motion. The login
+ * screen is the one exception the owner asked for: it is seen once a day,
+ * before any work starts, and nothing on it is being waited for.
+ *
+ * Kept cheap on purpose: transform and opacity only, so it runs on the GPU and
+ * costs a mid-range Android nothing. It stops entirely under
+ * prefers-reduced-motion.
+ */
+@keyframes drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(6%, -8%, 0) scale(1.12); }
+}
+
+@keyframes drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-7%, 6%, 0) scale(0.95); }
+}
+
+@keyframes drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+  50% { transform: translate3d(4%, 7%, 0) scale(1.1); }
+}
+
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  will-change: transform;
+}
+
+.blob-a { animation: drift-a 18s ease-in-out infinite; }
+.blob-b { animation: drift-b 22s ease-in-out infinite; }
+.blob-c { animation: drift-c 26s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .blob-a, .blob-b, .blob-c { animation: none; }
+}
