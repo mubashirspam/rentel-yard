@@ -15,9 +15,9 @@ import { BalanceCard } from '@/components/domain/balance-card';
 import { LedgerList } from '@/components/domain/ledger-list';
 import { OutstandingList } from '@/components/domain/outstanding-list';
 import { Card, Chip, EmptyState, PageHeader, Screen, SectionTitle } from '@/components/ui/layout';
-import { Money } from '@/components/ui/money';
+import { Money, Qty } from '@/components/ui/money';
 import { differenceInCalendarDays } from '@/lib/accrual';
-import { getAccountDetail } from '@/lib/accounts/service';
+import { getAccountDetail, listAccounts } from '@/lib/accounts/service';
 import { can, requireCapability } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
 import { listBillsForAccount } from '@/lib/bills/service';
@@ -40,7 +40,8 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
   const { account, customer, balance, accrual } = detail;
 
   const showMoney = can(session, 'money.view');
-  const [bills, money, yardName] = await Promise.all([
+  const [siblings, bills, money, yardName] = await Promise.all([
+    listAccounts(session, { customerId: customer.id, status: 'all' }, asOf),
     showMoney ? listBillsForAccount(session, id, asOf) : Promise.resolve([]),
     showMoney ? getMoneySummary(session, id, asOf) : Promise.resolve(null),
     orgName(session),
@@ -179,22 +180,6 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         </Card>
       )}
 
-      <SectionTitle tone="steel">Actions</SectionTitle>
-      <AccountActions
-        accountId={account.id}
-        status={account.status}
-        canClose={detail.canClose && account.status === 'open'}
-        canBill={can(session, 'bill.issue')}
-        canPay={can(session, 'payment.create')}
-        today={asOf}
-      />
-
-      {can(session, 'adjustment.create') && account.status === 'open' && (
-        <div className="mt-3">
-          <AddCharge accountId={account.id} today={asOf} />
-        </div>
-      )}
-
       <SectionTitle
         aside={
           detail.outstanding.length > 0 ? (
@@ -268,6 +253,73 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
         <EmptyState title="No entries yet">
           Every issue, return, payment, and correction on this site will appear here, newest first.
         </EmptyState>
+      )}
+
+      {siblings.length > 1 && (
+        <>
+          <SectionTitle tone="steel">{customer.name}&apos;s sites</SectionTitle>
+          <Card className="overflow-hidden">
+            <ul className="divide-y divide-rule">
+              {siblings.map((site) => (
+                <li key={site.id}>
+                  <Link
+                    href={`/accounts/${site.id}`}
+                    aria-current={site.id === account.id ? 'page' : undefined}
+                    className={`tap block px-4 py-2.5 hover:bg-paper ${
+                      site.id === account.id ? 'bg-steel-soft' : ''
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="truncate font-medium">
+                        {site.siteName}
+                        {site.id === account.id && (
+                          <span className="text-ink-3"> · this one</span>
+                        )}
+                      </span>
+                      <Money paise={site.balance} className="shrink-0 text-sm font-semibold" />
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {site.qtyOut > 0 ? (
+                        <Chip tone="amber">
+                          <Qty qty={site.qtyOut} /> out
+                        </Chip>
+                      ) : (
+                        <Chip tone="green">✓ all back</Chip>
+                      )}
+                      {site.status === 'closed' && <Chip>closed</Chip>}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex items-baseline justify-between border-t border-rule bg-paper px-4 py-2.5">
+              <span className="text-sm font-semibold">
+                Total for {customer.name}
+              </span>
+              <Money
+                paise={siblings.reduce((sum, site) => sum + site.balance, 0)}
+                className="font-semibold"
+              />
+            </div>
+          </Card>
+        </>
+      )}
+
+      <SectionTitle tone="steel">Actions</SectionTitle>
+      <AccountActions
+        accountId={account.id}
+        status={account.status}
+        canClose={detail.canClose && account.status === 'open'}
+        canBill={can(session, 'bill.issue')}
+        canPay={can(session, 'payment.create')}
+        today={asOf}
+      />
+
+      {can(session, 'adjustment.create') && account.status === 'open' && (
+        <div className="mt-3">
+          <AddCharge accountId={account.id} today={asOf} />
+        </div>
       )}
 
       {accrual.damageLines.length > 0 && (
