@@ -15,7 +15,6 @@ export default async function NewCustomerPage() {
       <PageHeader
         back={{ href: '/customers', label: 'Customers' }}
         title="New customer"
-        subtitle="Name and mobile is enough — the rest can wait until the lorry has gone."
       />
       <CustomerForm initial={EMPTY_CUSTOMER} submitLabel="Add customer" />
     </Screen>

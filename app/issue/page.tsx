@@ -50,7 +50,6 @@ export default async function IssuePage({
     <Screen>
       <PageHeader
         title="New lending"
-        subtitle="Pick who it is going to, then what is going out."
         back={{ href: '/issue', label: 'Lending' }}
       />
       <IssueForm

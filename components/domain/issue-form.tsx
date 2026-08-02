@@ -193,6 +193,8 @@ export function IssueForm({
    */
   return (
     <section>
+      <SectionTitle tone="steel">Choose or add customer</SectionTitle>
+
       {target ? (
         <Answered
           label={`${target.customerName} · ${target.siteName}`}
@@ -247,23 +249,6 @@ export function IssueForm({
       )}
 
       <FormError>{error}</FormError>
-
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <TextInput
-          id="issue-date"
-          label="Issue date"
-          type="date"
-          max={today}
-          value={movedAt}
-          onChange={(event) => setMovedAt(event.target.value)}
-        />
-        <TextInput
-          id="gate-pass"
-          label="Gate pass no. (optional)"
-          value={gatePassNo}
-          onChange={(event) => setGatePassNo(event.target.value)}
-        />
-      </div>
 
       <SectionTitle aside={<span className="text-sm text-ink-2">availability is live</span>}>
         What is going out?
@@ -328,6 +313,24 @@ export function IssueForm({
           })}
         </ul>
       </Card>
+
+      <SectionTitle>Details</SectionTitle>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <TextInput
+          id="issue-date"
+          label="Issue date"
+          type="date"
+          max={today}
+          value={movedAt}
+          onChange={(event) => setMovedAt(event.target.value)}
+        />
+        <TextInput
+          id="gate-pass"
+          label="Gate pass no. (optional)"
+          value={gatePassNo}
+          onChange={(event) => setGatePassNo(event.target.value)}
+        />
+      </div>
 
       {visible.length === 0 && (
         <p className="mt-3 text-sm text-ink-2">Nothing matches “{query}”.</p>

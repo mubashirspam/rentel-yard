@@ -40,7 +40,6 @@ export default async function AccountsPage({
     <Screen>
       <PageHeader
         title="Accounts"
-        subtitle={showClosed ? 'Every site, open and closed' : 'Open sites'}
       />
 
       {/* A plain GET form: it needs no JavaScript, so it still works while the

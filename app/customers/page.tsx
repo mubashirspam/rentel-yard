@@ -30,7 +30,6 @@ export default async function CustomersPage({
     <Screen>
       <PageHeader
         title="Customers"
-        subtitle="Contractors on the yard's books"
         action={
           <Link
             href="/customers/new"

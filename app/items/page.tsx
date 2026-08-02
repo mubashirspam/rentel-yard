@@ -30,7 +30,6 @@ export default async function ItemsPage() {
       <PageHeader
         back={{ href: '/stock', label: 'Stock' }}
         title="Items"
-        subtitle="What the yard hires out, and what it charges"
       />
       <ItemsScreen initialItems={await listStock(session)} />
     </Screen>

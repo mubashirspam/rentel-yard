@@ -48,47 +48,61 @@ const ACCENT = {
 } as const;
 
 /**
- * The heading of every screen, as a card.
+ * The app bar.
  *
- * It was floating text over the page background, which made a screen start with
- * nothing and left the back link, the title and the action visually unrelated.
- * A card gives the header an edge, so the eye finds where it starts, and lets
- * the action sit inside it rather than beside it.
+ * A phone app gives a screen one line of chrome: where you are, how to go back,
+ * and at most one action. This was a card with a rule, a 2xl title and a
+ * subtitle — furniture that pushed the actual work below the fold on a 360px
+ * screen and made every screen feel like a document rather than an app.
+ *
+ * Sticky, because on a long account screen the way back should not require
+ * scrolling to the top to find it.
  */
 export function PageHeader({
   title,
   subtitle,
   back,
   action,
-  tone = 'steel',
 }: {
   title: string;
+  /** One short line at most — anything longer belongs in the page. */
   subtitle?: ReactNode;
   /** Where the back link goes. Omit on a tab-bar destination. */
   back?: { href: string; label: string };
   action?: ReactNode;
-  tone?: keyof typeof ACCENT;
 }) {
   return (
-    <Card className="mb-4 overflow-hidden">
-      {back && (
-        <Link
-          href={back.href}
-          className="tap flex items-center gap-1 border-b border-rule px-4 text-sm font-semibold text-steel hover:bg-paper"
-        >
-          ← {back.label}
-        </Link>
-      )}
+    <div className="sticky top-0 z-20 -mx-4 mb-3 border-b border-rule bg-card/95 px-4 backdrop-blur">
+      <div className="flex h-14 items-center gap-2">
+        {back && (
+          <Link
+            href={back.href}
+            aria-label={`Back to ${back.label}`}
+            className="tap -ml-2 flex h-11 w-9 shrink-0 items-center justify-center text-ink-2 hover:text-ink"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+              aria-hidden
+            >
+              <path d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+        )}
 
-      <div className="flex items-start justify-between gap-3 p-4">
-        <div className="min-w-0">
-          <span aria-hidden className={`mb-2 block h-1 w-10 rounded-full ${ACCENT[tone]}`} />
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-ink-2">{subtitle}</p>}
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold tracking-tight">{title}</h1>
+          {subtitle && <p className="truncate text-xs text-ink-3">{subtitle}</p>}
         </div>
+
         {action && <div className="shrink-0">{action}</div>}
       </div>
-    </Card>
+    </div>
   );
 }
 

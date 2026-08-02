@@ -44,7 +44,6 @@ export default async function NewPaymentPage({
       <PageHeader
         back={{ href: `/accounts/${accountId}`, label: detail.account.siteName }}
         title="Record payment"
-        subtitle="Money already received — cash, UPI, bank, or cheque"
       />
       <PaymentForm
         accountId={accountId}

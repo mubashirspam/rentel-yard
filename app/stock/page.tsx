@@ -29,7 +29,6 @@ export default async function StockPage() {
     <Screen>
       <PageHeader
         title="Stock"
-        subtitle="Owned, out, and available — replayed from the ledger"
         action={
           can(session, 'item.manage') ? (
             <Link
