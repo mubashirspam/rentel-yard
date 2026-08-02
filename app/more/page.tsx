@@ -62,6 +62,13 @@ export default async function MorePage() {
       icon: <path d="M4 20V10m5 10V4m5 16v-7m5 7V8" />,
     },
     {
+      href: '/settings/messages',
+      label: 'Messages',
+      hint: 'WhatsApp language',
+      show: true,
+      icon: <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />,
+    },
+    {
       href: '/sync',
       label: 'Sync',
       hint: 'Pending and refused',
@@ -124,7 +131,7 @@ export default async function MorePage() {
       <SignOutButton />
 
       <p className="mt-6 text-xs text-ink-3">
-        Message templates and settings will live here. The customer portal arrives with M6.
+        The customer portal arrives with M6.
       </p>
     </Screen>
   );

@@ -75,6 +75,13 @@ export const settings = pgTable('settings', {
   /** §09 bill header: "yard name, address, phone". §04 carries only the name. */
   yardAddress: text('yard_address'),
   yardPhone: text('yard_phone'),
+  /**
+   * Language for the WhatsApp messages an admin sends (§09). The screens stay
+   * English — staff read them all day — but a statement goes to a contractor.
+   */
+  messageLanguage: text('message_language', { enum: ['en', 'ml'] })
+    .notNull()
+    .default('en'),
   /** §11: whether the customer portal shows per-day rates. */
   showRatesToCustomer: boolean('show_rates_to_customer').notNull().default(false),
   /** §11: how long an admin-shared portal link stays valid. */

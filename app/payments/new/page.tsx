@@ -16,6 +16,7 @@ import { orNotFound, requirePageSession } from '@/lib/auth/page';
 import { today } from '@/lib/clock';
 import { getMoneySummary } from '@/lib/payments/service';
 import { orgName } from '@/lib/org';
+import { messageLanguage } from '@/lib/settings/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,10 +34,11 @@ export default async function NewPaymentPage({
 
   if (!accountId) return <AccountChooser session={session} asOf={asOf} />;
 
-  const [detail, summary, yardName] = await Promise.all([
+  const [detail, summary, yardName, language] = await Promise.all([
     orNotFound(getAccountDetail(session, accountId, asOf)),
     getMoneySummary(session, accountId, asOf),
     orgName(session),
+    messageLanguage(session),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function NewPaymentPage({
         balance={summary.balance}
         pendingOnBills={summary.pendingOnBills}
         today={asOf}
+        language={language}
       />
     </Screen>
   );

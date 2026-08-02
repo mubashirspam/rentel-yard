@@ -29,6 +29,13 @@
       "when": 1785482468484,
       "tag": "0003_account_client_uuid",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785691612627,
+      "tag": "0004_message_language",
+      "breakpoints": true
     }
   ]
 }

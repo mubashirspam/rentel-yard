@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "message_language" text DEFAULT 'en' NOT NULL;

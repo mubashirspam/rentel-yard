@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { newClientUuid } from '@/lib/api/client';
 import { submitOrQueue } from '@/lib/sync/submit';
 import { formatDayFull } from '@/lib/format';
-import { receiptMessage } from '@/lib/messages';
+import { receiptMessage, type MessageLanguage } from '@/lib/messages';
 import { formatPaise, rupeesToPaise } from '@/lib/money';
 import { PAYMENT_METHODS } from '@/lib/validation/money';
 
@@ -51,6 +51,7 @@ export function PaymentForm({
   balance,
   pendingOnBills,
   today,
+  language = 'en',
 }: {
   accountId: string;
   siteName: string;
@@ -60,6 +61,8 @@ export function PaymentForm({
   balance: number;
   pendingOnBills: number;
   today: string;
+  /** The yard's chosen language for what a customer receives (§11). */
+  language?: MessageLanguage;
 }) {
   const router = useRouter();
   const [amount, setAmount] = useState('');
@@ -196,6 +199,7 @@ export function PaymentForm({
                 id: 'receipt',
                 label: 'Receipt',
                 text: receiptMessage({
+                  language,
                   yardName,
                   customerName,
                   siteName,

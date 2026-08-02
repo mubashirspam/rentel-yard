@@ -15,6 +15,7 @@ import { getBill } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
 import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 import { billMessage, reminderMessage, type MessageTemplate } from '@/lib/messages';
+import { messageLanguage } from '@/lib/settings/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -32,13 +33,17 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
   requireCapability(session, 'money.view');
 
   const asOf = today();
-  const bill = await orNotFound(getBill(session, id, asOf));
+  const [bill, language] = await Promise.all([
+    orNotFound(getBill(session, id, asOf)),
+    messageLanguage(session),
+  ]);
 
   const templates: MessageTemplate[] = [
     {
       id: 'bill',
       label: 'Send the invoice',
       text: billMessage({
+        language,
         yardName: bill.org.name,
         invoiceNo: bill.invoiceNo,
         siteName: bill.account.siteName,
@@ -53,6 +58,7 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
       id: 'reminder',
       label: 'Reminder',
       text: reminderMessage({
+        language,
         yardName: bill.org.name,
         customerName: bill.customer.name,
         invoiceNo: bill.invoiceNo,

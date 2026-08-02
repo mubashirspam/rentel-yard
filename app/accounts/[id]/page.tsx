@@ -25,6 +25,7 @@ import { today } from '@/lib/clock';
 import { formatDayFull, formatDays, formatMobile, formatMonth, telHref, waHref } from '@/lib/format';
 import { statementMessage } from '@/lib/messages';
 import { orgName } from '@/lib/org';
+import { messageLanguage } from '@/lib/settings/service';
 import { getMoneySummary } from '@/lib/payments/service';
 
 export const runtime = 'nodejs';
@@ -40,16 +41,18 @@ export default async function AccountPage({ params }: { params: Promise<{ id: st
   const { account, customer, balance, accrual } = detail;
 
   const showMoney = can(session, 'money.view');
-  const [siblings, bills, money, yardName] = await Promise.all([
+  const [siblings, bills, money, yardName, language] = await Promise.all([
     listAccounts(session, { customerId: customer.id, status: 'all' }, asOf),
     showMoney ? listBillsForAccount(session, id, asOf) : Promise.resolve([]),
     showMoney ? getMoneySummary(session, id, asOf) : Promise.resolve(null),
     orgName(session),
+    messageLanguage(session),
   ]);
 
   const daysOpen = differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1;
 
   const statement = statementMessage({
+    language,
     yardName,
     customerName: customer.name,
     siteName: account.siteName,
