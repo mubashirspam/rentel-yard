@@ -70,7 +70,32 @@ function build() {
         isActive: { type: 'boolean', required: true, input: false, defaultValue: true },
       },
     },
-    session: { modelName: 'authSessions' },
+    session: {
+      modelName: 'authSessions',
+
+      /**
+       * The session travels in the cookie, signed, for five minutes at a time.
+       *
+       * Without this, every single screen render begins with a round trip to
+       * Neon in Singapore just to learn who is asking — measured at 70-140ms
+       * warm, 380ms cold, before the page's own queries have started. On a
+       * phone in a yard that is the difference between a tap that responds and
+       * a tap that appears to have missed.
+       *
+       * The cost is staleness, and it lands on exactly one thing that matters:
+       * `requireSession` rejects a user whose `isActive` has gone false (§11
+       * deactivates, never deletes), and for up to `maxAge` that check now
+       * reads a cached copy. So a deactivated user keeps access for at most
+       * five minutes. That is the trade being made deliberately — five minutes
+       * is short enough that "remove their access" over the phone still means
+       * something, and `refreshCache` is left off so the cache genuinely
+       * expires against the database rather than renewing itself forever.
+       *
+       * Sign-out clears the cookie, so it is only involuntary revocation that
+       * waits.
+       */
+      cookieCache: { enabled: true, maxAge: 5 * 60 },
+    },
     account: { modelName: 'authAccounts' },
     verification: { modelName: 'authVerifications' },
 
