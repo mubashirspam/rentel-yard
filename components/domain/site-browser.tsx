@@ -4,11 +4,10 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import type { AccountListRow } from '@/lib/accounts/service';
-import { formatDay, formatDays } from '@/lib/format';
 
-import { Card, Chip, EmptyState } from '../ui/layout';
-import { Money, Qty } from '../ui/money';
+import { Card, EmptyState } from '../ui/layout';
 import { Segmented } from '../ui/segmented';
+import { CustomerBand, SiteRow } from './site-facts';
 
 /**
  * The list of sites, on both the lending and return screens.
@@ -24,6 +23,15 @@ import { Segmented } from '../ui/segmented';
  */
 
 type Range = 'all' | '7' | '30';
+
+interface Group {
+  customerId: string;
+  customerName: string;
+  customerMobile: string;
+  sites: AccountListRow[];
+  balance: number;
+  qtyOut: number;
+}
 
 const RANGES: Array<{ value: Range; label: string }> = [
   { value: 'all', label: 'All' },
@@ -59,13 +67,25 @@ export function SiteBrowser({
     return date.toISOString().slice(0, 10);
   }, [range]);
 
-  const visible = useMemo(() => {
+  const groups = useMemo(() => {
     const term = query.trim().toLowerCase();
     const digits = term.replace(/\D/g, '');
 
-    return rows.filter((row) => {
-      if (tabs && (view === 'out' ? row.qtyOut === 0 : row.qtyOut > 0)) return false;
-      if (cutoff && row.openedOn < cutoff) return false;
+    const matching = rows.filter((row) => {
+      /*
+       * The two tabs are not opposites, and treating them as one made partial
+       * returns disappear.
+       *
+       * A site mid-job has forty sheets back and sixty still standing. Splitting
+       * on `qtyOut > 0` alone put it in "Still out" and nowhere else, so the
+       * forty that came back could not be found from this screen at all. Each
+       * tab now asks its own question — is anything out, has anything come
+       * back — and a part-returned site truthfully answers yes to both.
+       */
+      if (tabs && (view === 'out' ? row.qtyOut === 0 : row.qtyReturned === 0)) return false;
+      // Recency means "when did the kit go out", not "when was the khata
+      // opened" — the same distinction the tiles themselves now draw.
+      if (cutoff && (row.outSince ?? row.openedOn) < cutoff) return false;
       if (!term) return true;
 
       return (
@@ -74,9 +94,47 @@ export function SiteBrowser({
         (digits.length >= 3 && row.customerMobile.includes(digits))
       );
     });
+
+    /*
+     * One card per contractor, their sites nested inside it.
+     *
+     * Ibrahim with three sites was three separate tiles, scattered down the
+     * list wherever each one's balance happened to sort it — so the screen
+     * never answered "what has Ibrahim got out?" without scrolling and adding
+     * up. Grouping is how the yard already talks about its customers.
+     */
+    const byCustomer = new Map<string, Group>();
+
+    for (const row of matching) {
+      const group = byCustomer.get(row.customerId) ?? {
+        customerId: row.customerId,
+        customerName: row.customerName,
+        customerMobile: row.customerMobile,
+        sites: [],
+        balance: 0,
+        qtyOut: 0,
+      };
+
+      group.sites.push(row);
+      group.balance += row.balance;
+      group.qtyOut += row.qtyOut;
+      byCustomer.set(row.customerId, group);
+    }
+
+    // Whoever is still holding equipment first, then whoever owes most. A
+    // contractor with nothing out is a money question, not a yard question.
+    return [...byCustomer.values()].sort(
+      (a, b) =>
+        Number(b.qtyOut > 0) - Number(a.qtyOut > 0) ||
+        b.balance - a.balance ||
+        a.customerName.localeCompare(b.customerName),
+    );
   }, [rows, query, cutoff, tabs, view]);
 
+  // Counted the same way the tabs filter, so the badges match what opens. They
+  // overlap on purpose: a part-returned site is counted in both.
   const outCount = rows.filter((row) => row.qtyOut > 0).length;
+  const returnedCount = rows.filter((row) => row.qtyReturned > 0).length;
 
   return (
     <div>
@@ -87,9 +145,9 @@ export function SiteBrowser({
             { href: '#out', label: 'Still out', active: view === 'out', count: outCount },
             {
               href: '#done',
-              label: 'Completed',
+              label: 'Returned',
               active: view === 'done',
-              count: rows.length - outCount,
+              count: returnedCount,
             },
           ]}
           onSelect={(index) => setView(index === 0 ? 'out' : 'done')}
@@ -126,7 +184,7 @@ export function SiteBrowser({
           <select
             value={range}
             onChange={(event) => setRange(event.target.value as Range)}
-            aria-label="Opened within"
+            aria-label="Went out within"
             className="tap appearance-none rounded-xl border border-rule bg-card pl-3 pr-8 text-sm font-semibold outline-none focus:border-steel focus:ring-2 focus:ring-steel/25"
           >
             {RANGES.map((option) => (
@@ -149,56 +207,43 @@ export function SiteBrowser({
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {groups.length === 0 ? (
         <EmptyState title={query.trim() ? `Nothing matches “${query}”` : emptyTitle} action={emptyAction}>
           {query.trim() ? 'Try the contractor’s name, the site, or part of the number.' : emptyBody}
         </EmptyState>
       ) : (
         <ul className="space-y-2.5">
-          {visible.map((row, index) => (
-            <li key={row.id}>
-              <Link href={`${hrefPrefix}${row.id}`} className="tap block">
-                <Card className="p-3 transition-colors hover:bg-paper">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <span className="tabular shrink-0 text-xs font-semibold text-ink-3">
-                        {index + 1}
-                      </span>
-                      <span className="truncate font-semibold">{row.customerName}</span>
-                    </span>
-                    <Money
-                      paise={row.balance}
-                      className={`shrink-0 font-semibold ${row.balance > 0 ? 'text-red' : 'text-green'}`}
-                    />
-                  </div>
+          {groups.map((group) => (
+            <li key={group.customerId}>
+              <Card className="overflow-hidden">
+                <CustomerBand
+                  href={`/accounts/${group.sites[0].id}?site=all`}
+                  customerName={group.customerName}
+                  mobile={group.customerMobile}
+                  siteCount={group.sites.length}
+                  balance={group.balance}
+                />
 
-                  <p className="mt-0.5 truncate text-sm text-ink-2">{row.siteName}</p>
-
-                  {/* The four facts that decide what happens next: how much is
-                      out, how long it has been out, what it costs a day, and
-                      what has accrued so far. */}
-                  <div className="mt-2 flex flex-wrap items-center gap-1">
-                    {row.qtyOut > 0 ? (
-                      <Chip tone="amber">
-                        <Qty qty={row.qtyOut} /> out
-                      </Chip>
-                    ) : (
-                      <Chip tone="green">✓ all back</Chip>
-                    )}
-                    <Chip>{formatDays(row.daysOpen)}</Chip>
-                    {row.perDay > 0 && (
-                      <Chip tone="steel">
-                        <Money paise={row.perDay} paiseDigits />
-                        /day
-                      </Chip>
-                    )}
-                    <Chip>
-                      rent <Money paise={row.accruedRent} />
-                    </Chip>
-                    <Chip>since {formatDay(row.openedOn)}</Chip>
-                  </div>
-                </Card>
-              </Link>
+                <ul className="divide-y divide-rule">
+                  {group.sites.map((row, index) => (
+                    <li key={row.id}>
+                      <Link
+                        href={`${hrefPrefix}${row.id}`}
+                        className="tap block px-4 py-2.5 transition-colors hover:bg-paper"
+                      >
+                        <SiteRow
+                          index={index + 1}
+                          siteName={row.siteName}
+                          since={row.outSince}
+                          days={row.daysOut}
+                          perDay={row.perDay}
+                          total={row.accruedRent}
+                        />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             </li>
           ))}
         </ul>

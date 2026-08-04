@@ -59,7 +59,14 @@ export interface MonthSummary {
 
 export interface AccountDetail {
   account: AccountRow;
-  customer: { id: string; name: string; mobile: string };
+  customer: {
+    id: string;
+    name: string;
+    mobile: string;
+    /** Paise. Zero means no limit is set. */
+    creditLimit: number;
+    isBlocked: boolean;
+  };
   asOf: string;
   /** The rules these figures were produced under (§03.1) — the screen says so. */
   config: BillingConfig;
@@ -355,7 +362,42 @@ export interface AccountListRow extends AccountRow {
   balance: number;
   /** Units still out across every item on the account. */
   qtyOut: number;
+  /**
+   * Calendar days the *khata* has been open. The age of the account record, not
+   * of anything on site — see `outSince` for the question a list screen asks.
+   */
   daysOpen: number;
+  /**
+   * The day the oldest thing still out actually went out, or null when nothing
+   * is out.
+   *
+   * Not the same as `openedOn`, and the difference is a real bug when they are
+   * confused: a lending can be backdated, and equipment can go out weeks after
+   * the khata was opened. A tile that says "5 days, since 31 Jul" beside rent
+   * that was accrued over 4 days from 01 Aug is not a rounding disagreement,
+   * it is two different questions answered in one breath.
+   */
+  outSince: string | null;
+  /**
+   * Days the oldest open lot has been held — the figure that matches the rent
+   * beside it. Zero when nothing is out.
+   *
+   * "Oldest", not an average, because it is the number that decides whether
+   * someone rings the contractor: one jack sitting for forty days is the story,
+   * however much else went out yesterday.
+   */
+  daysOut: number;
+  /**
+   * Units that have come off this site — returned, returned damaged, or written
+   * off as lost. Anything the ledger has closed.
+   *
+   * Separate from `qtyOut` because the two are not opposites. A site part-way
+   * through a job has both: forty sheets back last week, sixty still standing.
+   * Screens that split "still out" from "completed" have to ask both questions,
+   * or a partly-returned site falls into one bucket and its other half is
+   * invisible.
+   */
+  qtyReturned: number;
   /** Paise of rent + damages accrued to date — compare with bills to spot the unbilled. */
   accruedRent: number;
   /** Paise per day everything still out is accruing at. */
@@ -445,11 +487,31 @@ export async function listAccounts(
 
       const qtyOut = Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0);
 
+      // What is *on site*, taken from the lots themselves rather than from the
+      // account record. ISO dates sort lexicographically, so the earliest lot
+      // is a plain string comparison.
+      const { openLots } = accrual;
+      const outSince = openLots.reduce<string | null>(
+        (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
+        null,
+      );
+      const daysOut = openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0);
+
+      // A closed rent slice is a slice whose units came back. A lot returned in
+      // three loads yields three of them, so summing the quantities counts the
+      // units rather than the events.
+      const qtyReturned = accrual.lines
+        .filter((line) => line.to !== null)
+        .reduce((sum, line) => sum + line.qty, 0);
+
       return {
         ...account,
         isCompleted: account.status === 'open' && qtyOut === 0,
         balance: balance.balance,
         qtyOut,
+        qtyReturned,
+        outSince,
+        daysOut,
         daysOpen: differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1,
         accruedRent: accrual.rentTotal + accrual.damageTotal,
         perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
@@ -536,12 +598,35 @@ async function loadCustomer(database: Database, customerId: string) {
       id: schema.customers.id,
       name: schema.customers.name,
       mobile: schema.customers.mobile,
+      // Customer-level facts, carried because the account screen now leads
+      // with the contractor: whether they are blocked, and the limit their
+      // total across every site is judged against.
+      creditLimit: schema.customers.creditLimit,
+      isBlocked: schema.customers.isBlocked,
     })
     .from(schema.customers)
     .where(eq(schema.customers.id, customerId))
     .limit(1);
 
   return row;
+}
+
+/** The same lookup for a whole customer, in one query rather than one per site. */
+async function loadItemsForAccounts(database: Database, accountIds: readonly string[]) {
+  if (accountIds.length === 0) return new Map<string, ItemLabel>();
+
+  const rows = await database
+    .selectDistinct({
+      id: schema.items.id,
+      name: schema.items.name,
+      code: schema.items.code,
+      unit: schema.items.unit,
+    })
+    .from(schema.items)
+    .innerJoin(schema.movements, eq(schema.movements.itemId, schema.items.id))
+    .where(inArray(schema.movements.accountId, [...accountIds]));
+
+  return new Map(rows.map((row) => [row.id, row]));
 }
 
 async function loadItemsForAccount(database: Database, accountId: string) {
@@ -557,6 +642,121 @@ async function loadItemsForAccount(database: Database, accountId: string) {
     .where(eq(schema.movements.accountId, accountId));
 
   return new Map(rows.map((row) => [row.id, row]));
+}
+
+interface ItemLabel {
+  id: string;
+  name: string;
+  code: string | null;
+  unit: string;
+}
+
+/** One of a contractor's sites, with what is standing on it. */
+export interface CustomerSite {
+  accountId: string;
+  siteName: string;
+  status: 'open' | 'closed';
+  balance: number;
+  qtyOut: number;
+  perDay: number;
+  accruedRent: number;
+  /** The oldest lot still out on this site. Null when nothing is out. */
+  outSince: string | null;
+  daysOut: number;
+  outstanding: OutstandingLine[];
+}
+
+/** A contractor and every khata they hold, valued together. */
+export interface CustomerSitesView {
+  totals: {
+    /** Paise owed across every site, open and closed. */
+    balance: number;
+    qtyOut: number;
+    perDay: number;
+    accruedRent: number;
+    siteCount: number;
+    openSites: number;
+  };
+  sites: CustomerSite[];
+}
+
+/**
+ * Everything one contractor holds, across all their sites.
+ *
+ * The account screen leads with the person rather than the plot: an owner
+ * standing in front of Ibrahim wants "what has Ibrahim got, and what does
+ * Ibrahim owe" before "what is on the Mananthavady job". The site is a filter
+ * underneath that question, not the question itself.
+ *
+ * Every ledger loads in bulk — one query per table for the whole customer, not
+ * one per site — so a contractor with eight khatas costs the same round trips
+ * as one with a single site.
+ */
+export async function getCustomerSites(
+  session: StaffSession,
+  customerId: string,
+  asOf: string,
+): Promise<CustomerSitesView> {
+  const database = db();
+
+  const accounts = await database
+    .select({
+      id: schema.accounts.id,
+      siteName: schema.accounts.siteName,
+      status: schema.accounts.status,
+      openedOn: schema.accounts.openedOn,
+    })
+    .from(schema.accounts)
+    .where(
+      and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.customerId, customerId)),
+    )
+    .orderBy(desc(schema.accounts.openedOn));
+
+  const accountIds = accounts.map((account) => account.id);
+
+  const [config, ledgers, items] = await Promise.all([
+    loadBillingConfig(database, session.orgId),
+    loadLedgers(database, accountIds),
+    loadItemsForAccounts(database, accountIds),
+  ]);
+
+  const sites = accounts.map((account) => {
+    const ledger = ledgers.get(account.id)!;
+    const accrual = accrue(ledger.movements, config, asOf);
+    const balance = computeBalance({ accrual, ...ledger });
+    const { openLots } = accrual;
+
+    return {
+      accountId: account.id,
+      siteName: account.siteName,
+      status: account.status,
+      balance: balance.balance,
+      qtyOut: Object.values(accrual.outstanding).reduce((sum, qty) => sum + qty, 0),
+      perDay: openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
+      accruedRent: accrual.rentTotal + accrual.damageTotal,
+      outSince: openLots.reduce<string | null>(
+        (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
+        null,
+      ),
+      daysOut: openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0),
+      outstanding: buildOutstanding(accrual, items, asOf),
+    };
+  });
+
+  return {
+    totals: {
+      balance: sites.reduce((sum, site) => sum + site.balance, 0),
+      qtyOut: sites.reduce((sum, site) => sum + site.qtyOut, 0),
+      perDay: sites.reduce((sum, site) => sum + site.perDay, 0),
+      accruedRent: sites.reduce((sum, site) => sum + site.accruedRent, 0),
+      siteCount: sites.length,
+      openSites: sites.filter((site) => site.status === 'open').length,
+    },
+    // Sites holding something first — that is what the yard is asked about.
+    sites: sites.sort(
+      (a, b) => Number(b.qtyOut > 0) - Number(a.qtyOut > 0) || b.balance - a.balance,
+    ),
+  };
 }
 
 /**

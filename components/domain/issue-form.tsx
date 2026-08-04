@@ -65,6 +65,14 @@ export interface LendTarget {
   qtyOut: number;
 }
 
+/** One contractor and every open khata they hold, for the picker. */
+interface TargetGroup {
+  customerId: string;
+  customerName: string;
+  customerMobile: string;
+  sites: LendTarget[];
+}
+
 export function IssueForm({
   items: serverItems,
   today,
@@ -397,27 +405,73 @@ function TargetPicker({
 }) {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<'pick' | 'customer'>('pick');
+  /** The contractor a new site is being opened for, if any. */
+  const [siteFor, setSiteFor] = useState<TargetGroup>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  const matches = useMemo(() => {
+  /*
+   * One entry per contractor, their sites nested inside it.
+   *
+   * Ibrahim with three sites was three rows that repeated his name and said
+   * nothing about him — and the only way to open a fourth site was to leave
+   * this screen entirely. Grouping puts the person first, which is how the
+   * yard already thinks, and gives each one somewhere to hang "new site".
+   */
+  const groups = useMemo(() => {
     const term = query.trim().toLowerCase();
     const digits = term.replace(/\D/g, '');
 
-    if (!term) return targets.slice(0, 6);
+    const matching = term
+      ? targets.filter(
+          (candidate) =>
+            candidate.customerName.toLowerCase().includes(term) ||
+            candidate.siteName.toLowerCase().includes(term) ||
+            (digits.length >= 3 && candidate.customerMobile.includes(digits)),
+        )
+      : targets;
 
-    return targets
-      .filter(
-        (candidate) =>
-          candidate.customerName.toLowerCase().includes(term) ||
-          candidate.siteName.toLowerCase().includes(term) ||
-          (digits.length >= 3 && candidate.customerMobile.includes(digits)),
-      )
-      .slice(0, 12);
+    const byCustomer = new Map<string, TargetGroup>();
+
+    for (const candidate of matching) {
+      const group = byCustomer.get(candidate.customerId) ?? {
+        customerId: candidate.customerId,
+        customerName: candidate.customerName,
+        customerMobile: candidate.customerMobile,
+        sites: [],
+      };
+
+      group.sites.push(candidate);
+      byCustomer.set(candidate.customerId, group);
+    }
+
+    // Capped by contractor rather than by site: cutting Ibrahim's list off at
+    // his second site would hide the one being looked for and give no sign it
+    // had been hidden. Searching widens the cap.
+    return [...byCustomer.values()].slice(0, term ? 8 : 4);
   }, [targets, query]);
 
-  /** A brand-new contractor: create them, then lend to their General khata. */
-  async function createCustomer(name: string, mobile: string) {
+  /** Names held by more than one contractor on screen right now. */
+  const duplicateNames = useMemo(() => {
+    const seen = new Set<string>();
+    const duplicated = new Set<string>();
+
+    for (const group of groups) {
+      if (seen.has(group.customerName)) duplicated.add(group.customerName);
+      seen.add(group.customerName);
+    }
+
+    return duplicated;
+  }, [groups]);
+
+  /**
+   * A brand-new contractor.
+   *
+   * With a site name they start on that site; without one they land on their
+   * General khata (D61), which is the fast path the owner asked for — a name, a
+   * number, and straight to the items.
+   */
+  async function createCustomer(name: string, mobile: string, siteName: string) {
     setBusy(true);
     setError(undefined);
 
@@ -426,10 +480,18 @@ function TargetPicker({
         '/api/customers',
         { name, mobile },
       );
-      const account = await postJson<{ account: { id: string; siteName: string } }>(
-        '/api/accounts/default',
-        { customerId: created.customer.id },
-      );
+
+      const site = siteName.trim();
+      const account = site
+        ? await postJson<{ account: { id: string; siteName: string } }>('/api/accounts', {
+            customerId: created.customer.id,
+            siteName: site,
+            siteAddress: null,
+            openedOn: today,
+          })
+        : await postJson<{ account: { id: string; siteName: string } }>('/api/accounts/default', {
+            customerId: created.customer.id,
+          });
 
       onPick({
         accountId: account.account.id,
@@ -437,6 +499,36 @@ function TargetPicker({
         siteName: account.account.siteName,
         customerName: created.customer.name,
         customerMobile: created.customer.mobile,
+        qtyOut: 0,
+      });
+    } catch (failure) {
+      setError((failure as Error).message);
+      setBusy(false);
+    }
+  }
+
+  /** A second job for somebody already on the list. */
+  async function createSite(group: TargetGroup, siteName: string) {
+    setBusy(true);
+    setError(undefined);
+
+    try {
+      const account = await postJson<{ account: { id: string; siteName: string } }>(
+        '/api/accounts',
+        {
+          customerId: group.customerId,
+          siteName: siteName.trim(),
+          siteAddress: null,
+          openedOn: today,
+        },
+      );
+
+      onPick({
+        accountId: account.account.id,
+        customerId: group.customerId,
+        siteName: account.account.siteName,
+        customerName: group.customerName,
+        customerMobile: group.customerMobile,
         qtyOut: 0,
       });
     } catch (failure) {
@@ -469,33 +561,73 @@ function TargetPicker({
             </button>
           </div>
 
-          {matches.length > 0 ? (
+          {groups.length > 0 ? (
             <>
-              <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-3">
+              <p className="mb-1 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-2">
                 {query.trim() ? 'Matches' : 'Recent'}
               </p>
-              <ul className="divide-y divide-rule rounded-xl border border-rule">
-                {matches.map((candidate) => (
-                  <li key={candidate.accountId}>
-                    <button
-                      type="button"
-                      onClick={() => onPick(candidate)}
-                      className="tap flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-paper"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold">
-                          {candidate.customerName}
-                        </span>
-                        <span className="block truncate text-xs text-ink-2">
-                          {candidate.siteName}
-                        </span>
+              <ul className="space-y-2">
+                {groups.map((group) => (
+                  <li key={group.customerId} className="overflow-hidden rounded-xl border border-rule">
+                    <div className="flex items-center justify-between gap-2 border-b border-rule bg-steel-soft px-3 py-1.5">
+                      <span className="min-w-0 truncate text-sm font-semibold text-steel">
+                        {group.customerName}
+                        {/* Two contractors really can share a name, and this
+                            yard already has a pair of Mubashirs. Grouped, their
+                            bands sit next to each other looking like one list
+                            split in half, so the number settles which is which
+                            — but only when there is something to settle. */}
+                        {duplicateNames.has(group.customerName) && (
+                          <span className="ml-1.5 font-normal text-steel/80">
+                            {formatMobile(group.customerMobile)}
+                          </span>
+                        )}
                       </span>
-                      {candidate.qtyOut > 0 && (
-                        <Chip tone="amber">
-                          <Qty qty={candidate.qtyOut} /> out
-                        </Chip>
-                      )}
-                    </button>
+                      {/* No `tap` here. That utility floors a control at 44px,
+                          which is right for a target a thumb hunts for and
+                          wrong for one sitting inside a header — it was
+                          stretching every contractor band to 44px and undoing
+                          the work of tightening the rows. This one is small
+                          and next to a name, so it is easy to find without
+                          being easy to hit by accident. */}
+                      <button
+                        type="button"
+                        onClick={() => setSiteFor(group)}
+                        className="shrink-0 rounded-lg bg-card px-2 py-1 text-xs font-semibold leading-none text-steel hover:bg-paper"
+                      >
+                        + Site
+                      </button>
+                    </div>
+
+                    {siteFor?.customerId === group.customerId ? (
+                      <NewSiteInline
+                        busy={busy}
+                        customerName={group.customerName}
+                        onCancel={() => setSiteFor(undefined)}
+                        onCreate={(siteName) => createSite(group, siteName)}
+                      />
+                    ) : null}
+
+                    <ul className="divide-y divide-rule">
+                      {group.sites.map((candidate) => (
+                        <li key={candidate.accountId}>
+                          <button
+                            type="button"
+                            onClick={() => onPick(candidate)}
+                            className="tap flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-paper"
+                          >
+                            <span className="min-w-0 truncate font-medium">
+                              {candidate.siteName}
+                            </span>
+                            {candidate.qtyOut > 0 && (
+                              <Chip tone="amber">
+                                <Qty qty={candidate.qtyOut} /> out
+                              </Chip>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   </li>
                 ))}
               </ul>
@@ -517,11 +649,11 @@ function TargetPicker({
         />
       )}
 
-      <p className="mt-2 text-xs text-ink-3">
-        A site is optional — a new customer starts on their general khata, and sites can be added
-        from their page.
+      <p className="mt-2 text-xs text-ink-2">
+        A site is optional — leave it blank and the customer starts on their general khata. Use
+        <span className="font-semibold"> + Site</span> to open another job for someone already
+        listed.
       </p>
-      <span className="hidden">{today}</span>
     </Card>
   );
 }
@@ -536,11 +668,12 @@ function NewCustomerInline({
   busy: boolean;
   initial: string;
   onCancel: () => void;
-  onCreate: (name: string, mobile: string) => void;
+  onCreate: (name: string, mobile: string, siteName: string) => void;
 }) {
   const digitsOnly = /^\d+$/.test(initial.trim());
   const [name, setName] = useState(digitsOnly ? '' : initial);
   const [mobile, setMobile] = useState(digitsOnly ? initial.trim() : '');
+  const [siteName, setSiteName] = useState('');
 
   return (
     <div>
@@ -564,13 +697,70 @@ function NewCustomerInline({
         />
       </div>
 
+      {/* Optional on purpose. Half this yard's contractors are one job and one
+          khata, and making them name a site before anything can leave the gate
+          is a question with no answer. Naming one here saves opening it later. */}
+      <TextInput
+        id="lend-new-site"
+        label="Site (optional)"
+        placeholder="Leave blank for their general khata"
+        value={siteName}
+        onChange={(event) => setSiteName(event.target.value)}
+      />
+
       <div className="flex gap-3">
         <Button
           type="button"
           disabled={busy || !name.trim() || !mobile.trim()}
-          onClick={() => onCreate(name, mobile)}
+          onClick={() => onCreate(name, mobile, siteName)}
         >
           {busy ? 'Adding…' : 'Add and continue'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Opening another site for a contractor who is already on the list, without
+ * leaving the lending flow.
+ *
+ * Only the name is asked for. Address and opened-on both have sensible answers
+ * here — none, and today — and a second job usually gets named at the gate
+ * while the lorry is waiting. `NewSite` on the customer's own page remains the
+ * place to open one properly.
+ */
+function NewSiteInline({
+  busy,
+  customerName,
+  onCancel,
+  onCreate,
+}: {
+  busy: boolean;
+  customerName: string;
+  onCancel: () => void;
+  onCreate: (siteName: string) => void;
+}) {
+  const [siteName, setSiteName] = useState('');
+
+  return (
+    <div className="border-b border-rule bg-paper px-3 py-2">
+      <TextInput
+        id="lend-new-site-existing"
+        label={`New site for ${customerName}`}
+        required
+        autoFocus
+        placeholder="e.g. Kakkanad flats"
+        value={siteName}
+        onChange={(event) => setSiteName(event.target.value)}
+      />
+
+      <div className="flex gap-2">
+        <Button type="button" disabled={busy || !siteName.trim()} onClick={() => onCreate(siteName)}>
+          {busy ? 'Opening…' : 'Open and continue'}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel

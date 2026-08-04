@@ -121,7 +121,16 @@ export interface BuildBillDraftInput {
   periodFrom: IsoDate;
   periodTo: IsoDate;
   config: BillingConfig;
-  /** Defaults to `all` — the whole period, open lots included. */
+  /**
+   * Defaults to `all` here — this is the pure engine, and `all` is the neutral
+   * "value the whole period" reading of a ledger.
+   *
+   * The *product's* default is `returned`, and it is set at the boundary
+   * instead: the validation schemas and the generate-bill screen. Keeping the
+   * engine neutral is what lets `draft.test.ts` and `lifecycle.test.ts` go on
+   * pinning the whole-run arithmetic by hand without every case having to
+   * restate which mode it means.
+   */
   scope?: BillScope;
   /**
    * `openDaysBilledByLot` from the last bill on this account. Absent for a

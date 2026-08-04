@@ -7,6 +7,7 @@
 
 import Link from 'next/link';
 
+import { CustomerBand, SiteRow } from '@/components/domain/site-facts';
 import { Card, Chip, EmptyState, List, PageHeader, RowLink, Screen, SectionTitle } from '@/components/ui/layout';
 import { Money, Qty } from '@/components/ui/money';
 import { requirePageSession } from '@/lib/auth/page';
@@ -75,45 +76,37 @@ export default async function HomePage() {
                 {/* The contractor's own band: who, and what they hold in total.
                     A yard asks "what has Ibrahim got out?" before it asks about
                     any one site. */}
-                <div className="flex items-baseline justify-between gap-3 border-b border-rule bg-steel-soft px-4 py-2">
-                  <span className="truncate font-semibold text-steel">{customer.customerName}</span>
-                  <span className="flex shrink-0 items-center gap-1.5 text-sm">
-                    {customer.qtyOut > 0 && (
+                <CustomerBand
+                  href={`/accounts/${customer.sites[0].accountId}?site=all`}
+                  customerName={customer.customerName}
+                  mobile={customer.customerMobile}
+                  siteCount={customer.sites.length}
+                  balance={customer.balance}
+                  aside={
+                    customer.qtyOut > 0 ? (
                       <Chip tone="amber">
                         <Qty qty={customer.qtyOut} /> out
                       </Chip>
-                    )}
-                    <Money
-                      paise={customer.balance}
-                      className={`font-semibold ${customer.balance > 0 ? 'text-red' : 'text-green'}`}
-                    />
-                  </span>
-                </div>
+                    ) : null
+                  }
+                />
 
                 <ul className="divide-y divide-rule">
                   {customer.sites.map((site, index) => (
                     <li key={site.accountId}>
-                      <RowLink href={`/accounts/${site.accountId}`} index={index + 1}>
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="font-medium">{site.siteName}</span>
-                          <Money paise={site.balance} className="text-sm" />
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          {site.qtyOut > 0 ? (
-                            <>
-                              <Chip tone="amber">
-                                <Qty qty={site.qtyOut} /> out
-                              </Chip>
-                              <Chip>
-                                <Money paise={site.perDay} paiseDigits />
-                                /day
-                              </Chip>
-                            </>
-                          ) : (
-                            <Chip tone="green">✓ nothing out</Chip>
-                          )}
-                        </div>
-                      </RowLink>
+                      <Link
+                        href={`/accounts/${site.accountId}`}
+                        className="tap block px-4 py-2.5 transition-colors hover:bg-paper"
+                      >
+                        <SiteRow
+                          index={index + 1}
+                          siteName={site.siteName}
+                          since={site.outSince}
+                          days={site.daysOut}
+                          perDay={site.perDay}
+                          total={site.accruedRent}
+                        />
+                      </Link>
                     </li>
                   ))}
                 </ul>

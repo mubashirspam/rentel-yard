@@ -32,7 +32,7 @@ export function BillPreviewScreen({
 }) {
   const router = useRouter();
   const [preview, setPreview] = useState(initial);
-  const [scope, setScope] = useState<'all' | 'returned'>('all');
+  const [scope, setScope] = useState<'all' | 'returned'>('returned');
   const [periodFrom, setPeriodFrom] = useState(initial.periodFrom);
   const [periodTo, setPeriodTo] = useState(initial.periodTo);
   const [dueOn, setDueOn] = useState('');
@@ -97,34 +97,35 @@ export function BillPreviewScreen({
     <section>
       <FormError>{error}</FormError>
 
-      {/* Bill the whole period, or only what has actually come back and can be
-          invoiced as finished work. Equipment still on the site keeps accruing
-          either way — the difference is whether this invoice charges for it now
-          or the next one charges the whole run when it returns. */}
+      {/* Returned first, and selected by default: a bill is for finished hire.
+          A site can be busy and still have a load that came back last week, and
+          that load is invoiceable now — the rest is charged in full when it
+          follows. "Everything to date" stays for a yard that bills monthly
+          whatever is standing, but it is now the deliberate choice. */}
       <div className="mb-4">
         <Segmented
           options={[
-            {
-              href: '#all',
-              label: 'Everything to date',
-              active: scope === 'all',
-            },
             {
               href: '#returned',
               label: 'Only what came back',
               active: scope === 'returned',
             },
+            {
+              href: '#all',
+              label: 'Everything to date',
+              active: scope === 'all',
+            },
           ]}
           onSelect={(index) => {
-            const next = index === 0 ? 'all' : 'returned';
+            const next = index === 0 ? 'returned' : 'all';
             setScope(next);
             void refresh(periodFrom, periodTo, next);
           }}
         />
-        <p className="mt-1.5 text-xs text-ink-3">
-          {scope === 'all'
-            ? 'Includes rent running on equipment still at the site.'
-            : 'Equipment still out is left off — it is billed in full when it comes back.'}
+        <p className="mt-1.5 text-xs text-ink-2">
+          {scope === 'returned'
+            ? 'Equipment still out is left off — it is billed in full when it comes back.'
+            : 'Includes rent running on equipment still at the site, which the next bill will not re-charge.'}
         </p>
       </div>
 

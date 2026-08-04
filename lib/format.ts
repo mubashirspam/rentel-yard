@@ -32,6 +32,46 @@ export function formatDayFull(iso: string): string {
   return `${formatDay(iso)} ${iso.slice(0, 4)}`;
 }
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Sakamoto's algorithm. Offsets into the year for each month. */
+const SAKAMOTO = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+
+/**
+ * `2026-06-01` → `Mon, 01 Jun`.
+ *
+ * The weekday matters in a yard: "it went out Monday" is how a lending is
+ * remembered and argued about, and a bare date makes an admin count backwards
+ * on their fingers to check a contractor's story.
+ *
+ * Worked out arithmetically rather than by `new Date(iso).getDay()`, for the
+ * reason at the top of this file — parsing the string into a `Date` is exactly
+ * how a phone set to UTC ends up naming the wrong day.
+ */
+export function formatDayWeekday(iso: string): string {
+  const [yearPart, monthPart, dayPart] = iso.split('-');
+  const month = Number(monthPart);
+  const day = Number(dayPart);
+  let year = Number(yearPart);
+
+  if (!year || !month || !day || month < 1 || month > 12) return formatDay(iso);
+
+  // January and February are treated as months 13 and 14 of the previous year,
+  // which is what lets one leap-year rule cover the whole table.
+  if (month < 3) year -= 1;
+
+  const weekday =
+    (year +
+      Math.floor(year / 4) -
+      Math.floor(year / 100) +
+      Math.floor(year / 400) +
+      SAKAMOTO[month - 1] +
+      day) %
+    7;
+
+  return `${WEEKDAYS[weekday]}, ${formatDay(iso)}`;
+}
+
 /** `2026-06-01` (or `2026-06`) → `Jun 2026`. */
 export function formatMonth(iso: string): string {
   const [year, month] = iso.split('-');

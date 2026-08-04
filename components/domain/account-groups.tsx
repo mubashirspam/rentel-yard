@@ -3,11 +3,10 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { formatDays } from '@/lib/format';
-
 import { Card, Chip, EmptyState } from '../ui/layout';
-import { Money, Qty } from '../ui/money';
+import { Money } from '../ui/money';
 import { Segmented } from '../ui/segmented';
+import { CustomerBand, SiteRow } from './site-facts';
 
 /**
  * Every khata, gathered under the contractor who holds it.
@@ -27,11 +26,14 @@ export interface AccountGroupRow {
   id: string;
   customerId: string;
   customerName: string;
+  customerMobile: string;
   siteName: string;
   balance: number;
   qtyOut: number;
   perDay: number;
-  daysOpen: number;
+  /** The oldest lot still out, not the day the khata was opened. */
+  outSince: string | null;
+  daysOut: number;
   accruedRent: number;
   /** Paise of rent and damages already frozen into invoices. */
   billed: number;
@@ -41,6 +43,7 @@ export interface AccountGroupRow {
 interface Group {
   customerId: string;
   customerName: string;
+  customerMobile: string;
   sites: AccountGroupRow[];
   balance: number;
   qtyOut: number;
@@ -80,6 +83,7 @@ export function AccountGroups({ rows }: { rows: AccountGroupRow[] }) {
       const group = byCustomer.get(row.customerId) ?? {
         customerId: row.customerId,
         customerName: row.customerName,
+        customerMobile: row.customerMobile,
         sites: [],
         balance: 0,
         qtyOut: 0,
@@ -154,27 +158,20 @@ export function AccountGroups({ rows }: { rows: AccountGroupRow[] }) {
           {groups.map((group) => (
             <li key={group.customerId}>
               <Card className="overflow-hidden">
-                {/* The contractor's band: what they hold and owe across every
-                    site, because that is how a yard asks about them. */}
-                <div className="flex items-baseline justify-between gap-3 border-b border-rule bg-steel-soft px-4 py-2">
-                  <Link
-                    href={`/customers/${group.customerId}`}
-                    className="truncate font-semibold text-steel hover:underline"
-                  >
-                    {group.customerName}
-                  </Link>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    {group.unbilled > 0 && (
+                <CustomerBand
+                  href={`/accounts/${group.sites[0].id}?site=all`}
+                  customerName={group.customerName}
+                  mobile={group.customerMobile}
+                  siteCount={group.sites.length}
+                  balance={group.balance}
+                  aside={
+                    group.unbilled > 0 ? (
                       <Chip tone="amber">
                         <Money paise={group.unbilled} /> to bill
                       </Chip>
-                    )}
-                    <Money
-                      paise={group.balance}
-                      className={`font-semibold ${group.balance > 0 ? 'text-red' : 'text-green'}`}
-                    />
-                  </span>
-                </div>
+                    ) : null
+                  }
+                />
 
                 <ul className="divide-y divide-rule">
                   {group.sites.map((site, index) => {
@@ -182,39 +179,25 @@ export function AccountGroups({ rows }: { rows: AccountGroupRow[] }) {
 
                     return (
                       <li key={site.id}>
-                        <Link href={`/accounts/${site.id}`} className="tap block px-4 py-3 hover:bg-paper">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <span className="flex min-w-0 items-baseline gap-2">
-                              <span className="tabular shrink-0 text-xs font-semibold text-ink-3">
-                                {index + 1}
-                              </span>
-                              <span className="truncate font-medium">{site.siteName}</span>
-                            </span>
-                            <Money paise={site.balance} className="shrink-0 text-sm font-semibold" />
-                          </div>
-
-                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                            {site.qtyOut > 0 ? (
-                              <Chip tone="amber">
-                                <Qty qty={site.qtyOut} /> out
-                              </Chip>
-                            ) : (
-                              <Chip tone="green">✓ all back</Chip>
-                            )}
-                            {unbilled > 0 && (
-                              <Chip tone="red">
-                                <Money paise={unbilled} /> to bill
-                              </Chip>
-                            )}
-                            {site.perDay > 0 && (
-                              <Chip tone="steel">
-                                <Money paise={site.perDay} paiseDigits />
-                                /day
-                              </Chip>
-                            )}
-                            <Chip>{formatDays(site.daysOpen)}</Chip>
-                            {site.status === 'closed' && <Chip>closed</Chip>}
-                          </div>
+                        <Link href={`/accounts/${site.id}`} className="tap block px-4 py-2.5 hover:bg-paper">
+                          <SiteRow
+                            index={index + 1}
+                            siteName={site.siteName}
+                            since={site.outSince}
+                            days={site.daysOut}
+                            perDay={site.perDay}
+                            total={site.accruedRent}
+                            trailing={
+                              <>
+                                {unbilled > 0 && (
+                                  <Chip tone="red">
+                                    <Money paise={unbilled} /> to bill
+                                  </Chip>
+                                )}
+                                {site.status === 'closed' && <Chip>closed</Chip>}
+                              </>
+                            }
+                          />
                         </Link>
                       </li>
                     );

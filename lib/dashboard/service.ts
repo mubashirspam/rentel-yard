@@ -82,12 +82,22 @@ export interface ActiveSite {
   accountId: string;
   customerId: string;
   customerName: string;
+  customerMobile: string;
   siteName: string;
   /** Paise owed on the account right now. */
   balance: number;
   qtyOut: number;
   /** Paise per day everything out is accruing at. */
   perDay: number;
+  /**
+   * The day the oldest thing still out went out — never the day the khata was
+   * opened, which can be weeks earlier and is a different question entirely.
+   */
+  outSince: string | null;
+  /** Days the oldest open lot has been held, matching the rent beside it. */
+  daysOut: number;
+  /** Paise of rent and damages accrued so far. */
+  accruedRent: number;
 }
 
 /**
@@ -99,6 +109,8 @@ export interface ActiveSite {
 export interface ActiveCustomer {
   customerId: string;
   customerName: string;
+  /** For the call and WhatsApp buttons on the contractor's band. */
+  customerMobile: string;
   sites: ActiveSite[];
   /** Paise owed across all their open sites. */
   balance: number;
@@ -193,14 +205,26 @@ export async function getDashboard(
     // totals above — its balance is real — but the working list is what is
     // physically in the field; the rest is Accounts → All.
     if (accountQtyOut > 0) {
+      const { openLots } = accrual;
+
       activeSites.push({
         accountId: account.id,
         customerId: account.customerId,
         customerName: account.customerName,
+        customerMobile: account.mobile,
         siteName: account.siteName,
         balance,
         qtyOut: accountQtyOut,
-        perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
+        perDay: openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
+        // ISO dates sort lexicographically, so the oldest lot is a string
+        // comparison. Same derivation as `listAccounts` — the two screens must
+        // not be able to disagree about when a lending started.
+        outSince: openLots.reduce<string | null>(
+          (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
+          null,
+        ),
+        daysOut: openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0),
+        accruedRent: accrual.rentTotal + accrual.damageTotal,
       });
     }
     balanceByCustomer.set(
@@ -382,6 +406,7 @@ function byCustomer(sites: ActiveSite[]): ActiveCustomer[] {
     const existing = customers.get(site.customerId) ?? {
       customerId: site.customerId,
       customerName: site.customerName,
+      customerMobile: site.customerMobile,
       sites: [],
       balance: 0,
       qtyOut: 0,

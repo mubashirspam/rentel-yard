@@ -18,7 +18,9 @@ export default async function NewBillPage({ params }: { params: Promise<{ id: st
   requireCapability(session, 'bill.issue');
 
   const asOf = today();
-  const preview = await orNotFound(previewBill(session, id, {}, asOf));
+  // Finished hire only, matching the screen's own default — see `billScope`.
+  // Equipment still on the site is billed in full when it comes back.
+  const preview = await orNotFound(previewBill(session, id, { scope: 'returned' }, asOf));
 
   return (
     <Screen>
