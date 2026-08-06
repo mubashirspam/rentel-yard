@@ -1,60 +1,64 @@
 /**
- * §08.3 fast issue. Arriving with `?account=` skips straight to the items.
+ * §08.3 fast lending. One page, and it is the form (D65).
+ *
+ * `/issue` used to open on a list of every site with equipment out, with *New
+ * lending* above it — a picker between the tab and the work. That list was the
+ * third copy of the same thing: Home shows who is holding what, Customers
+ * shows it again, and a contractor's own screen shows it a fourth time with
+ * the return links attached. A tab called **Lend** should lend.
+ *
+ * So the route lands on the form. `?new=1` still works, because it is in
+ * saved links and in the manifest's shortcuts; `?account=` still skips
+ * straight to the items for a site already chosen; and `?customer=` — how the
+ * contractor's own *Lend* button arrives — seeds the picker with their name so
+ * their sites are on screen without the app deciding which one.
  */
 
-import Link from 'next/link';
-
 import { IssueForm, type IssueTarget } from '@/components/domain/issue-form';
-import { SiteBrowser } from '@/components/domain/site-browser';
-import { PageHeader, Screen, SectionTitle } from '@/components/ui/layout';
+import { PageHeader, Screen } from '@/components/ui/layout';
 import { getAccountDetail, listAccounts } from '@/lib/accounts/service';
 import { requireCapability, type StaffSession } from '@/lib/auth/guard';
 import { requirePageSession } from '@/lib/auth/page';
 import { today } from '@/lib/clock';
+import { db, schema } from '@/lib/db/client';
 import { ERROR_CODES, isLedgerError } from '@/lib/errors';
 import { listStock } from '@/lib/stock/service';
+import { WORDS } from '@/lib/vocabulary';
+import { and, eq } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type Search = { account?: string; new?: string };
+type Search = { account?: string; customer?: string; new?: string };
 
-export default async function IssuePage({
-  searchParams,
-}: {
-  searchParams: Promise<Search>;
-}) {
+export default async function IssuePage({ searchParams }: { searchParams: Promise<Search> }) {
   const session = await requirePageSession('/issue');
   requireCapability(session, 'movement.create');
 
   const asOf = today();
-  const { account: accountId, new: startNew } = await searchParams;
+  const { account: accountId, customer: customerId } = await searchParams;
 
-  // Without an explicit target, /issue is the live list of rentals out on
-  // hire — the picker flow is one tap away on "New issue".
-  if (!accountId && startNew === undefined) {
-    return <ActiveRentals session={session} />;
-  }
-
-  const [stock, target, targets] = await Promise.all([
+  const [stock, target, targets, initialQuery] = await Promise.all([
     listStock(session),
     accountId ? findTarget(session, accountId, asOf) : Promise.resolve(undefined),
-    // Every open khata, rendered into the picker at the top of the form. Sent
-    // with the page so choosing a customer and site costs no round trip and no
-    // second screen — the whole lending is one page.
+    /*
+     * Every open khata, rendered into the picker at the top of the form. Sent
+     * with the page so choosing a customer and site costs no round trip and no
+     * second screen — the whole lending is one page. Skipped only when the
+     * site is already decided by the URL.
+     */
     accountId ? Promise.resolve([]) : listAccounts(session, { status: 'open' }, asOf),
+    customerId ? customerName(session, customerId) : Promise.resolve(undefined),
   ]);
 
   return (
     <Screen>
-      <PageHeader
-        title="New lending"
-        back={{ href: '/issue', label: 'Lending' }}
-      />
+      <PageHeader title={`New ${WORDS.lending.toLowerCase()}`} />
       <IssueForm
         items={stock}
         today={asOf}
         initialTarget={target}
+        initialQuery={initialQuery}
         targets={targets.map((account) => ({
           accountId: account.id,
           customerId: account.customerId,
@@ -68,47 +72,24 @@ export default async function IssuePage({
   );
 }
 
-/** Every site with equipment on hire — searched and filtered on the device. */
-async function ActiveRentals({ session }: { session: StaffSession }) {
-  // Only sites actually holding equipment: this screen answers "who has our
-  // stock and might want more", and a fully-returned site is noise here — it
-  // lives under Accounts → All.
-  const rows = (await listAccounts(session, { status: 'open' }, today())).filter(
-    (account) => account.qtyOut > 0,
-  );
+/**
+ * The name behind `?customer=`, or nothing.
+ *
+ * Only the name: it seeds a filter the admin can clear, so an id from another
+ * org (D22) or one that no longer exists simply leaves the picker open on
+ * everybody rather than raising a 404 on a screen that still works.
+ */
+async function customerName(
+  session: StaffSession,
+  customerId: string,
+): Promise<string | undefined> {
+  const [row] = await db()
+    .select({ name: schema.customers.name })
+    .from(schema.customers)
+    .where(and(eq(schema.customers.id, customerId), eq(schema.customers.orgId, session.orgId)))
+    .limit(1);
 
-  return (
-    <Screen>
-      <PageHeader title="Lending" />
-
-      <Link
-        href="/issue?new=1"
-        className="tap mb-4 flex items-center justify-center gap-1.5 rounded-xl bg-steel px-3 font-semibold text-white hover:bg-steel-strong"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-4 w-4" aria-hidden>
-          <path strokeLinecap="round" d="M12 5v14M5 12h14" />
-        </svg>
-        New lending
-      </Link>
-
-      <SectionTitle tone="amber">Lending out now</SectionTitle>
-
-      <SiteBrowser
-        rows={rows}
-        hrefPrefix="/issue?account="
-        emptyTitle="Nothing is out on hire"
-        emptyBody="Every item the yard owns is on the racks. Start a lending and the site appears here."
-        emptyAction={
-          <Link
-            href="/issue?new=1"
-            className="tap inline-flex items-center rounded-xl bg-steel px-4 py-2 font-semibold text-white"
-          >
-            New lending
-          </Link>
-        }
-      />
-    </Screen>
-  );
+  return row?.name;
 }
 
 /**

@@ -880,6 +880,97 @@ observer, nothing to break on rotation, and `motion-reduce` turns it off.
 
 ---
 
+## One customer, one screen
+
+### D66. The nav carried work that belonged to a person
+
+The owner's complaint, in his words: one customer's story was scattered across
+four tabs, so he was hunting for the same person in several places.
+
+He was right, and the numbers say so. Answering *what has Ibrahim got, what does
+he owe, and what still needs an invoice?* meant Home for his active sites,
+`/accounts` for the billed/unbilled split, `/accounts/[id]` for one site's
+money, and `/customers/[id]` for his profile — the same person in four card
+designs. Worse, three of the five global destinations (`/issue`, `/return`,
+`/accounts`) opened onto **the same list of sites**, each with its own picker.
+The bar was carrying an entity's work.
+
+So the entity gets the screen. `/customers/[id]` is now the hub: the
+contractor's total, call/WhatsApp/lend, and four tabs — **Out now · To bill ·
+Billed · Returned** — that are four views of one person rather than four places.
+
+What the bar keeps is what is genuinely global: **Home · Customers · Lend ·
+Stock · More**.
+
+- **Return** leaves the bar. A return always belongs to a site, so it starts by
+  pointing at what is out — `OutBySite` already made every line a link to
+  `/return?account=&item=`, which turned out to be the whole feature. The
+  `/return` chooser survives for when you know the site but not the name, under
+  More.
+- **Accounts** leaves the bar and `/accounts` redirects to `/customers`. Its
+  reason for existing — *whose finished work has nobody invoiced?* — survives as
+  the **To bill** segment and the card's chip, both of which count closed sites,
+  which is the case that screen was built for.
+- **Stock** joins it. "Have we got twenty spans?" is asked at the gate,
+  mid-conversation, and it was two taps down under More.
+
+`/accounts/[id]` stays as the *site* screen and is no longer a destination: it
+holds what is genuinely per-khata — the ledger, adjustments, closing, the
+bill — and is reached by tapping a site band on the hub. `?site=all`, its old
+customer-wide half, redirects to the person. No URL 404s (D60).
+
+The FAB's four-action sheet goes with them. It sat directly over the tab bar it
+duplicated, and every action in it now has a screen that owns it.
+
+### D67. The card's arithmetic is derived once
+
+Home and Customers show the same contractor card, and before this they showed
+two different things — the dashboard grouped *open sites* under a name,
+`/accounts` grouped *khatas* — each deriving what the person owed its own way.
+Two lists of the same people, free to disagree.
+
+`listCustomerCards` (`lib/customers/cards.ts`) is now the only place that
+answers it, and `getCustomerHub` derives the same figures for the screen behind
+it. *To bill* is `balance − pendingOnBills`, exactly as `getMoneySummary` does
+it for one account, so the card and the site screen cannot show two numbers for
+one job; `hub.test.ts` pins them together.
+
+It is clamped at zero **per site**, not on the total: a job billed slightly
+ahead of its accrual must not quietly cancel out another job that genuinely
+needs an invoice.
+
+Both are bulk (D34) — `listAccounts` replays every ledger in one pass per table
+and the pending-on-bills figure is one grouped query — so a contractor with
+eight sites costs what one with a single site costs. The dashboard's
+`activeSites` is deleted rather than left beside it.
+
+### D68. A warning is a line, not a section
+
+Home had grown seven stacked sections, four of which were a heading plus a list
+of one row: negative stock, over the credit limit, out a long time, low stock.
+The day's actual work sat below three scrolls of warnings about it.
+
+A warning's job is to say *there is a thing* and point at what fixes it. They
+are now one tappable line each, capped at three, above the people — low stock to
+Stock, an over-limit contractor to their own screen, a long-held lot to the
+khata holding it. The detail lives on the screen that resolves it, which is
+where somebody standing in it can act.
+
+### D69. Layout from the mock, colour from the yard
+
+The redesign came in as an HTML mock with a warm cream palette and Manrope + IBM
+Plex Mono. The layout and the flow are taken wholesale; the palette and the
+fonts are not.
+
+D27 pinned the light theme and the system font stack for a specific reason — a
+mid-range Android in Kerala daylight — and swapping in a cream paper and two
+webfonts would trade tested contrast and a zero-byte first paint for a look. The
+owner agreed. So the mock's structure arrives in the existing tokens: stat grid,
+contractor cards, chips, in-entity tabs, site blocks, the rubber stamp on a
+settled invoice, and the sticky lend bar that now carries its own running total.
+
+---
+
 ## Open questions for the yard owner
 
 §14 requires these answered before the first real bill. Two are now settled —

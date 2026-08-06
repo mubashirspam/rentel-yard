@@ -248,12 +248,35 @@ export async function listBillsForAccount(
   accountId: string,
   asOf: string,
 ): Promise<BillSummary[]> {
+  const byAccount = await listBillsForAccounts(session, [accountId], asOf);
+  return byAccount.get(accountId) ?? [];
+}
+
+/**
+ * The same, for every khata a contractor holds, in two queries rather than two
+ * per site (D34).
+ *
+ * The customer screen's *Billed* tab is one list across all their sites, so it
+ * would otherwise pay `listBillsForAccount` once per site — and a contractor
+ * with eight jobs would cost sixteen round trips to render a tab nobody may
+ * even open.
+ */
+export async function listBillsForAccounts(
+  session: StaffSession,
+  accountIds: readonly string[],
+  asOf: string,
+): Promise<Map<string, BillSummary[]>> {
+  const byAccount = new Map<string, BillSummary[]>(accountIds.map((id) => [id, []]));
+  if (accountIds.length === 0) return byAccount;
+
   const database = db();
 
   const rows = await database
     .select()
     .from(schema.bills)
-    .where(and(eq(schema.bills.orgId, session.orgId), eq(schema.bills.accountId, accountId)))
+    .where(
+      and(eq(schema.bills.orgId, session.orgId), inArray(schema.bills.accountId, [...accountIds])),
+    )
     .orderBy(desc(schema.bills.periodTo));
 
   const allocated = await allocatedByBill(
@@ -261,7 +284,11 @@ export async function listBillsForAccount(
     rows.map((row) => row.id),
   );
 
-  return rows.map((row) => toSummary(row, allocated, asOf));
+  for (const row of rows) {
+    byAccount.get(row.accountId)?.push(toSummary(row, allocated, asOf));
+  }
+
+  return byAccount;
 }
 
 export async function getBill(
@@ -340,6 +367,43 @@ export async function billedRentByAccount(
 
   for (const row of rows) billed.set(row.accountId, row.total);
   return billed;
+}
+
+/**
+ * Paise still owed on each account's invoices — what is billed, less what has
+ * been allocated against it.
+ *
+ * The other half of the *to bill* figure. An account's accrued-but-uninvoiced
+ * rent is its balance less this, which is exactly how `getMoneySummary` derives
+ * `unbilled` for one account; this answers it for a whole list in one query, so
+ * the customer cards and the customer screen cannot disagree about who owes an
+ * invoice.
+ */
+export async function pendingOnBillsByAccount(
+  session: StaffSession,
+  accountIds: readonly string[],
+): Promise<Map<string, number>> {
+  const pending = new Map<string, number>(accountIds.map((id) => [id, 0]));
+  if (accountIds.length === 0) return pending;
+
+  const rows = await db()
+    .select({
+      accountId: schema.bills.accountId,
+      pending: sql<number>`coalesce(sum(${schema.bills.grandTotal}), 0)::int
+        - coalesce(sum((
+            select coalesce(sum(${schema.paymentAllocations.amount}), 0)
+            from ${schema.paymentAllocations}
+            where ${schema.paymentAllocations.billId} = ${schema.bills.id}
+          )), 0)::int`,
+    })
+    .from(schema.bills)
+    .where(
+      and(eq(schema.bills.orgId, session.orgId), inArray(schema.bills.accountId, [...accountIds])),
+    )
+    .groupBy(schema.bills.accountId);
+
+  for (const row of rows) pending.set(row.accountId, row.pending);
+  return pending;
 }
 
 /**

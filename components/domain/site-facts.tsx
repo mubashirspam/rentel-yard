@@ -41,12 +41,11 @@ export function CustomerBand({
   aside,
 }: {
   /**
-   * Where the contractor's name goes.
-   *
-   * Their *account*, not their profile card — `/accounts/{anySiteId}?site=all`
-   * is the screen that answers "what has Ibrahim got and what does he owe",
-   * and it is the same question this band is asking in miniature. The profile
-   * (name, mobile, credit limit) is a settings page reached from there.
+   * Where the contractor's name goes: `/customers/{id}`, the one screen that
+   * answers "what has Ibrahim got and what does he owe" — the same question
+   * this band asks in miniature. It used to be `/accounts/{anySiteId}?site=all`,
+   * a customer-shaped view wearing a khata's URL; that view is now the
+   * customer's own screen and the old link redirects to it.
    */
   href: string;
   customerName: string;

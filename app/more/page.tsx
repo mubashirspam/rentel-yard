@@ -1,6 +1,12 @@
 /**
- * The fifth tab (§08.5). Everything that is not Home, Lend, Return, or
- * Accounts, shaped by capability so nobody taps into a 403.
+ * The fifth tab (§08.5). Everything that is not Home, Customers, Lend or
+ * Stock, shaped by capability so nobody taps into a 403.
+ *
+ * Customers and Stock left this grid in the redesign — both are destinations in
+ * their own right now, and a tile that duplicates a tab is a second way to the
+ * same place that has to be learned before it can be ignored. Returns never had
+ * a tile and no longer has a tab: a return starts by pointing at what is out, on
+ * the screen of whoever is holding it.
  *
  * A tile grid rather than a list: these are destinations, not rows of data,
  * and an icon a thumb recognises beats a sentence at a glance. Two columns at
@@ -32,13 +38,6 @@ export default async function MorePage() {
 
   const tiles: Tile[] = [
     {
-      href: '/customers',
-      label: 'Customers',
-      hint: 'Search, add, limits',
-      show: can(session, 'customer.manage'),
-      icon: <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z" />,
-    },
-    {
       href: '/payments/new',
       label: 'Payment',
       hint: 'Record money received',
@@ -48,11 +47,11 @@ export default async function MorePage() {
       ),
     },
     {
-      href: '/stock',
-      label: 'Stock',
-      hint: 'Owned, out, available',
+      href: '/return',
+      label: 'Return',
+      hint: 'When you know the site, not the name',
       show: can(session, 'movement.create'),
-      icon: <path d="M4 7l8-4 8 4v10l-8 4-8-4V7zm8 4l8-4M12 11L4 7m8 4v10" />,
+      icon: <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />,
     },
     {
       href: '/reports',

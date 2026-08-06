@@ -78,6 +78,7 @@ export function IssueForm({
   today,
   initialTarget,
   targets = [],
+  initialQuery,
 }: {
   items: StockRow[];
   today: string;
@@ -85,6 +86,13 @@ export function IssueForm({
   initialTarget?: IssueTarget;
   /** Every open khata, for the picker at the top of the form. */
   targets?: LendTarget[];
+  /**
+   * Seeds the picker's filter — set when the flow was entered from a
+   * contractor's own screen (`/issue?customer=…`). Their sites are on screen
+   * from the first paint, but which one is still theirs to say: a yard with
+   * three jobs running does not want the app guessing which lorry this is.
+   */
+  initialQuery?: string;
 }) {
   /*
    * The item list comes from the server when there is one. With no signal the
@@ -212,6 +220,7 @@ export function IssueForm({
         <TargetPicker
           targets={targets}
           today={today}
+          initialQuery={initialQuery}
           onPick={(picked) => {
             setTarget({
               accountId: picked.accountId,
@@ -344,29 +353,45 @@ export function IssueForm({
         <p className="mt-3 text-sm text-ink-2">Nothing matches “{query}”.</p>
       )}
 
-      {/* §08.3: "running total of rent/day shown as items are added". */}
-      <div className="sticky bottom-16 mt-4 rounded-2xl border border-rule bg-card p-4">
+      {/*
+       * §08.3: "running total of rent/day shown as items are added" — now on
+       * the button itself rather than on a line above it.
+       *
+       * The two facts a thumb hovering over *Lend* wants are how much is going
+       * out and what it earns a day, and putting them on the control means the
+       * bar is one row instead of three. On a 360px screen that is the
+       * difference between seeing two items while you count the third and
+       * seeing none.
+       */}
+      <div className="sticky bottom-16 mt-4 rounded-2xl border border-rule bg-card p-3">
         {chosen.length === 0 ? (
-          <p className="text-sm text-ink-2">Add a quantity against an item to continue.</p>
+          <p className="px-1 py-2 text-center text-sm text-ink-2">
+            Add a quantity against an item to continue.
+          </p>
         ) : (
           <>
-            <div className="mb-3 flex items-baseline justify-between gap-3">
-              <span className="text-sm text-ink-2">
-                {chosen.length} {chosen.length === 1 ? 'item' : 'items'} · issued{' '}
-                {formatDayFull(movedAt)}
+            <button
+              type="button"
+              onClick={commit}
+              disabled={busy || !target}
+              className="tap flex w-full items-center justify-between gap-3 rounded-xl bg-steel px-4 font-semibold text-white transition-colors hover:bg-steel-strong disabled:bg-ink-3"
+            >
+              <span>
+                {busy
+                  ? 'Recording…'
+                  : target
+                    ? `${chosen.reduce((sum, line) => sum + line.qty, 0)} units · Lend now`
+                    : 'Choose who it is going to'}
               </span>
-              <span className="font-semibold">
+              <span className="tabular shrink-0 font-bold">
                 <Money paise={perDay} paiseDigits />
                 /day
               </span>
-            </div>
-            <Button onClick={commit} disabled={busy || !target}>
-              {busy
-                ? 'Recording…'
-                : target
-                  ? `Lend ${chosen.reduce((sum, line) => sum + line.qty, 0)} units`
-                  : 'Choose who it is going to'}
-            </Button>
+            </button>
+            <p className="mt-1.5 text-center text-xs text-ink-3">
+              {chosen.length} {chosen.length === 1 ? 'item' : 'items'} · going out{' '}
+              {formatDayFull(movedAt)}
+            </p>
           </>
         )}
       </div>
@@ -398,12 +423,14 @@ function TargetPicker({
   targets,
   today,
   onPick,
+  initialQuery,
 }: {
   targets: LendTarget[];
   today: string;
   onPick: (target: LendTarget) => void;
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? '');
   const [mode, setMode] = useState<'pick' | 'customer'>('pick');
   /** The contractor a new site is being opened for, if any. */
   const [siteFor, setSiteFor] = useState<TargetGroup>();

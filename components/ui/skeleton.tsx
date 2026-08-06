@@ -111,6 +111,28 @@ export function SiteCard({ sites = 2 }: { sites?: number }) {
 }
 
 /**
+ * A contractor card: name and scale on the left, what they owe on the right,
+ * chips beneath. The shape Home and Customers both list.
+ */
+export function ContractorCard() {
+  return (
+    <Card className="p-3.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 flex-1">
+          <Bar className="h-4 w-28" />
+          <Bar className="mt-1.5 h-3 w-20" />
+        </span>
+        <Bar className="h-4 w-16 shrink-0" />
+      </div>
+      <div className="mt-2.5 flex gap-1.5">
+        <Bar className="h-5 w-20 rounded-full" />
+        <Bar className="h-5 w-24 rounded-full" />
+      </div>
+    </Card>
+  );
+}
+
+/**
  * The whole frame for a tab destination.
  *
  * Wraps `Screen`, so the tab bar and the sync chip are on screen the instant a

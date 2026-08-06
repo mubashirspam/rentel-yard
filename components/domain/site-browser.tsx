@@ -217,7 +217,7 @@ export function SiteBrowser({
             <li key={group.customerId}>
               <Card className="overflow-hidden">
                 <CustomerBand
-                  href={`/accounts/${group.sites[0].id}?site=all`}
+                  href={`/customers/${group.customerId}`}
                   customerName={group.customerName}
                   mobile={group.customerMobile}
                   siteCount={group.sites.length}

@@ -1,54 +1,22 @@
 /**
- * Every khata, grouped under its contractor and split by what still needs an
- * invoice — see `AccountGroups` for why that beats open / closed.
+ * Gone, as a screen. Kept, as a URL.
+ *
+ * `/accounts` listed every khata grouped under its contractor and split by what
+ * still needed an invoice — which is the same list `/customers` now shows, one
+ * card per person, with that split carried on the card as a chip and opened in
+ * the contractor's own *To bill* tab. Two screens answering one question is
+ * exactly the scatter this redesign removed.
+ *
+ * The path stays because links to it are saved on phones (D60). A plain server
+ * redirect rather than a permanent one: a 308 would be cached on those phones
+ * forever, and the day this shape changes again it should change here.
  */
 
-import { AccountGroups } from '@/components/domain/account-groups';
-import { PageHeader, Screen } from '@/components/ui/layout';
-import { listAccounts } from '@/lib/accounts/service';
-import { requireCapability } from '@/lib/auth/guard';
-import { requirePageSession } from '@/lib/auth/page';
-import { billedRentByAccount } from '@/lib/bills/service';
-import { today } from '@/lib/clock';
+import { redirect } from 'next/navigation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export default async function AccountsPage() {
-  const session = await requirePageSession('/accounts');
-  requireCapability(session, 'account.manage');
-
-  const asOf = today();
-
-  // Everything, open and closed: a closed site carrying unbilled rent is
-  // exactly what this screen exists to surface.
-  const accounts = await listAccounts(session, { status: 'all' }, asOf);
-  const billed = await billedRentByAccount(
-    session,
-    accounts.map((account) => account.id),
-  );
-
-  return (
-    <Screen>
-      <PageHeader title="Accounts" />
-
-      <AccountGroups
-        rows={accounts.map((account) => ({
-          id: account.id,
-          customerId: account.customerId,
-          customerName: account.customerName,
-          customerMobile: account.customerMobile,
-          siteName: account.siteName,
-          balance: account.balance,
-          qtyOut: account.qtyOut,
-          perDay: account.perDay,
-          outSince: account.outSince,
-          daysOut: account.daysOut,
-          accruedRent: account.accruedRent,
-          billed: billed.get(account.id) ?? 0,
-          status: account.status,
-        }))}
-      />
-    </Screen>
-  );
+export default function AccountsPage() {
+  redirect('/customers');
 }

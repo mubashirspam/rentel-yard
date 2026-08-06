@@ -3,8 +3,8 @@
  *
  * Home is the most expensive screen in the product — `getDashboard` opens with
  * the accounts query and then fans out into seven more, one of which fans out
- * into four — so it is the screen that most needs to say "coming" rather than
- * nothing at all.
+ * into four, and `listCustomerCards` replays every khata beside it — so it is
+ * the screen that most needs to say "coming" rather than nothing at all.
  *
  * The route group exists only to give this file somewhere to live: `/` needs a
  * loading boundary of its own, and a `loading.tsx` sitting directly in `app/`
@@ -13,7 +13,7 @@
  */
 
 import { Card } from '@/components/ui/layout';
-import { Bar, LoadingScreen, SiteCard, TitleBar } from '@/components/ui/skeleton';
+import { Bar, ContractorCard, LoadingScreen, TitleBar } from '@/components/ui/skeleton';
 
 export default function Loading() {
   return (
@@ -37,10 +37,12 @@ export default function Loading() {
         ))}
       </div>
 
+      {/* "Needs you today" — one card per contractor. */}
       <TitleBar />
       <div className="space-y-2.5">
-        <SiteCard />
-        <SiteCard sites={1} />
+        <ContractorCard />
+        <ContractorCard />
+        <ContractorCard />
       </div>
     </LoadingScreen>
   );

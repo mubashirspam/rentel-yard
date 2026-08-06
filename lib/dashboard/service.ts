@@ -9,6 +9,14 @@
  *
  * Everything here is one replay per open account over bulk-loaded ledgers, so
  * the whole screen costs a handful of queries rather than one per account.
+ *
+ * It no longer produces the working list. That was `activeSites` — open sites
+ * gathered under the contractor holding them — and it listed *places* when the
+ * screen it fed now lists *people*, deriving what each owed a second way from
+ * `/accounts`. `listCustomerCards` in `lib/customers/cards.ts` is the one
+ * answer to that question, over closed khatas as well as open ones, and Home
+ * asks it directly. What is left here is the day: the totals, what moved, and
+ * what is wrong.
  */
 
 import { and, eq, sql } from 'drizzle-orm';
@@ -78,46 +86,6 @@ export interface LongHeldLot {
   daysHeld: number;
 }
 
-export interface ActiveSite {
-  accountId: string;
-  customerId: string;
-  customerName: string;
-  customerMobile: string;
-  siteName: string;
-  /** Paise owed on the account right now. */
-  balance: number;
-  qtyOut: number;
-  /** Paise per day everything out is accruing at. */
-  perDay: number;
-  /**
-   * The day the oldest thing still out went out — never the day the khata was
-   * opened, which can be weeks earlier and is a different question entirely.
-   */
-  outSince: string | null;
-  /** Days the oldest open lot has been held, matching the rent beside it. */
-  daysOut: number;
-  /** Paise of rent and damages accrued so far. */
-  accruedRent: number;
-}
-
-/**
- * One contractor and every site they have open.
- *
- * A yard thinks in people first — "what has Ibrahim got out?" — and a flat list
- * of sites makes that a scanning exercise when a contractor holds three.
- */
-export interface ActiveCustomer {
-  customerId: string;
-  customerName: string;
-  /** For the call and WhatsApp buttons on the contractor's band. */
-  customerMobile: string;
-  sites: ActiveSite[];
-  /** Paise owed across all their open sites. */
-  balance: number;
-  qtyOut: number;
-  perDay: number;
-}
-
 /** Today's movements for one site, so the dashboard reads as gate passes. */
 export interface TodaySite {
   accountId: string;
@@ -133,9 +101,6 @@ export interface DashboardData {
   totals: DashboardTotals;
   /** Movements dated today, grouped by the site they belong to (§08.1). */
   today: TodaySite[];
-  /** Every open site, biggest balance first — the home screen's working list. */
-  /** Open sites, gathered under the contractor who holds them. */
-  activeSites: ActiveCustomer[];
   /** Bills past their due date with money still owed (§09 reminder queue). */
   overdue: Awaited<ReturnType<typeof listOverdueBills>>;
   overLimit: OverLimitCustomer[];
@@ -188,7 +153,6 @@ export async function getDashboard(
     notReceived: Math.max(0, money.billed - money.allocated),
   };
   const longHeld: LongHeldLot[] = [];
-  const activeSites: ActiveSite[] = [];
   const balanceByCustomer = new Map<string, number>();
 
   for (const account of accounts) {
@@ -201,32 +165,6 @@ export async function getDashboard(
     totals.outstanding += balance;
     accruedOnOpenAccounts += accrual.rentTotal + accrual.damageTotal;
     totals.qtyOut += accountQtyOut;
-    // Only sites with equipment out. A completed site still counts in the
-    // totals above — its balance is real — but the working list is what is
-    // physically in the field; the rest is Accounts → All.
-    if (accountQtyOut > 0) {
-      const { openLots } = accrual;
-
-      activeSites.push({
-        accountId: account.id,
-        customerId: account.customerId,
-        customerName: account.customerName,
-        customerMobile: account.mobile,
-        siteName: account.siteName,
-        balance,
-        qtyOut: accountQtyOut,
-        perDay: openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
-        // ISO dates sort lexicographically, so the oldest lot is a string
-        // comparison. Same derivation as `listAccounts` — the two screens must
-        // not be able to disagree about when a lending started.
-        outSince: openLots.reduce<string | null>(
-          (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
-          null,
-        ),
-        daysOut: openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0),
-        accruedRent: accrual.rentTotal + accrual.damageTotal,
-      });
-    }
     balanceByCustomer.set(
       account.customerId,
       (balanceByCustomer.get(account.customerId) ?? 0) + balance,
@@ -274,7 +212,6 @@ export async function getDashboard(
     asOf,
     totals,
     today: groupBySite(todayMovements),
-    activeSites: byCustomer(activeSites),
     overdue,
     overLimit: overLimit.sort((a, b) => b.balance - a.balance),
     longHeld: longHeld.sort((a, b) => b.daysHeld - a.daysHeld).slice(0, 10),
@@ -396,35 +333,4 @@ function groupBySite(movements: TodayMovement[]): TodaySite[] {
 
   // Lending before collections: a yard's day runs that way.
   return [...sites.values()].sort((a, b) => b.out.length - a.out.length);
-}
-
-/** Gather sites under their contractor, biggest balance first. */
-function byCustomer(sites: ActiveSite[]): ActiveCustomer[] {
-  const customers = new Map<string, ActiveCustomer>();
-
-  for (const site of sites) {
-    const existing = customers.get(site.customerId) ?? {
-      customerId: site.customerId,
-      customerName: site.customerName,
-      customerMobile: site.customerMobile,
-      sites: [],
-      balance: 0,
-      qtyOut: 0,
-      perDay: 0,
-    };
-
-    existing.sites.push(site);
-    existing.balance += site.balance;
-    existing.qtyOut += site.qtyOut;
-    existing.perDay += site.perDay;
-
-    customers.set(site.customerId, existing);
-  }
-
-  for (const customer of customers.values()) {
-    // Within a contractor, the site with most out is the one being asked about.
-    customer.sites.sort((a, b) => b.qtyOut - a.qtyOut || b.balance - a.balance);
-  }
-
-  return [...customers.values()].sort((a, b) => b.balance - a.balance);
 }

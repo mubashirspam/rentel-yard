@@ -3,9 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { WORDS } from '@/lib/vocabulary';
+
 /**
- * §08.5: "Bottom tab bar on mobile: Home · Issue · Return · Accounts · More."
- * "Issue" reads as Lend on screen — see `lib/vocabulary.ts`.
+ * Home · Customers · Lend · Stock · More.
+ *
+ * §08.5 originally named Issue, Return and Accounts here. Three of those five
+ * destinations opened onto the same list of sites in three different card
+ * designs, which is what scattered one contractor across four tabs. **Return**
+ * and **Accounts** are gone: a return is an action on a thing that is out, so
+ * it starts from the customer holding it, and an account is a section of that
+ * customer rather than a place of its own. What is left is genuinely global —
+ * the day, the people, the act of lending, the yard's own stock, and settings.
  *
  * The active tab is a filled pill that **slides** between positions rather than
  * appearing and disappearing. That is not decoration: on a 360px screen with
@@ -24,22 +33,23 @@ const TABS = [
     icon: <path d="M12 3l9 8h-3v9h-4v-6H10v6H6v-9H3l9-8z" />,
   },
   {
+    href: '/customers',
+    label: 'Customers',
+    icon: <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-4 0-8 2-8 5v1h16v-1c0-3-4-5-8-5z" />,
+  },
+  {
+    /* The route keeps its name (D60) — only the label is the owner's word. */
     href: '/issue',
-    label: 'Lend',
+    label: WORDS.lendTab,
     icon: (
       <path d="M4 17V7a1 1 0 0 1 1-1h9v11H4zm10 0h3.5L20 13.5V10h-6v7zm-8.5 3.5A1.75 1.75 0 1 0 5.5 17a1.75 1.75 0 0 0 0 3.5zm11 0A1.75 1.75 0 1 0 16.5 17a1.75 1.75 0 0 0 0 3.5z" />
     ),
   },
   {
-    href: '/return',
-    label: 'Return',
-    icon: <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />,
-  },
-  {
-    href: '/accounts',
-    label: 'Accounts',
+    href: '/stock',
+    label: 'Stock',
     icon: (
-      <path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 4v2h14V9H5zm0 4v2h9v-2H5z" />
+      <path d="M12 2l9 4.5v11L12 22l-9-4.5v-11L12 2zm0 2.2L5.4 7.5 12 10.8l6.6-3.3L12 4.2zM5 9.3v7l6 3v-7l-6-3zm8 10l6-3v-7l-6 3v7z" />
     ),
   },
   {

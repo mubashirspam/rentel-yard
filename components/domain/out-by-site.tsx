@@ -66,27 +66,67 @@ function byDate(lines: OutstandingLine[]): DateGroup[] {
 export function OutBySite({
   sites,
   minimumDays = 0,
+  siteHref,
 }: {
   sites: CustomerSite[];
   /** The yard's minimum billing days — groups under it are billed at the floor. */
   minimumDays?: number;
+  /**
+   * Makes the site's own band a link, for the screens that have somewhere
+   * deeper to send it — the customer hub, whose *Out now* tab is the only way
+   * to reach a khata's ledger and its Close button now that `/accounts` is not
+   * a destination. Omitted on screens that are already about one site.
+   */
+  siteHref?: (accountId: string) => string;
 }) {
   return (
     <ul className="space-y-2.5">
-      {sites.map((site) => (
+      {sites.map((site) => {
+        /* Level one: the place. Steel, because it is the yard's own work. */
+        const heading = (
+          <>
+            <span className="flex min-w-0 items-center gap-1 truncate text-base font-bold">
+              {site.siteName}
+              {siteHref && (
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  className="h-3.5 w-3.5 shrink-0 opacity-70"
+                  aria-hidden
+                >
+                  <path d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </span>
+            <span className="flex shrink-0 items-baseline gap-2 text-sm">
+              <span className="font-medium text-white/80">
+                <Money paise={site.perDay} paiseDigits />
+                /day
+              </span>
+              <Money paise={site.accruedRent} className="text-lg font-bold" />
+            </span>
+          </>
+        );
+
+        const headingClass =
+          'flex items-baseline justify-between gap-3 bg-steel px-4 py-2.5 text-white';
+
+        return (
         <li key={site.accountId}>
           <Card className="overflow-hidden">
-            {/* Level one: the place. Steel, because it is the yard's own work. */}
-            <div className="flex items-baseline justify-between gap-3 bg-steel px-4 py-2.5 text-white">
-              <span className="truncate text-base font-bold">{site.siteName}</span>
-              <span className="flex shrink-0 items-baseline gap-2 text-sm">
-                <span className="font-medium text-white/80">
-                  <Money paise={site.perDay} paiseDigits />
-                  /day
-                </span>
-                <Money paise={site.accruedRent} className="text-lg font-bold" />
-              </span>
-            </div>
+            {siteHref ? (
+              <Link
+                href={siteHref(site.accountId)}
+                className={`${headingClass} hover:bg-steel-strong`}
+              >
+                {heading}
+              </Link>
+            ) : (
+              <div className={headingClass}>{heading}</div>
+            )}
 
             {byDate(site.outstanding).map((group) => {
               const billedDays = Math.max(group.daysHeld, minimumDays);
@@ -182,7 +222,8 @@ export function OutBySite({
             })}
           </Card>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

@@ -82,14 +82,14 @@ async function AccountChooser({
           title="Nobody owes anything"
           action={
             <Link
-              href="/accounts"
+              href="/customers"
               className="tap inline-flex items-center rounded-xl border border-rule bg-card px-4 py-2 font-medium"
             >
-              All accounts
+              All customers
             </Link>
           }
         >
-          Every open site is settled. A payment can still be recorded from the account screen.
+          Every open site is settled. A payment can still be recorded from a site&apos;s own screen.
         </EmptyState>
       ) : (
         <List>
