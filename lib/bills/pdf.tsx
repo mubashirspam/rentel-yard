@@ -61,7 +61,24 @@ const styles = StyleSheet.create({
   grand: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
   rule: { borderTopWidth: 1, borderTopColor: '#15181c', marginTop: 4, paddingTop: 4 },
   terms: { marginTop: 18, fontSize: 7, color: '#4a545e' },
+  minimumNote: { fontSize: 6.5, color: '#4a545e' },
 });
+
+/**
+ * True when this lot's whole run is shorter than its minimum hire period, so
+ * the rent on the line is the floor rather than the calendar.
+ *
+ * Read from `rawDays`, the lot's full run, not from `days`, which is only the
+ * slice this bill charges — a later bill on the same lot charges fewer days
+ * without the floor having anything to do with it.
+ */
+function atMinimumHire(line: BillDetail['frozen']['lines'][number]): boolean {
+  // Bills frozen before per-item minimums existed carry neither field. Their
+  // JSONB is read back verbatim and never recomputed (§02), so the honest
+  // answer for them is "no floor was applied", which is what they charged.
+  if (line.minimumDays === undefined || line.rawDays === undefined) return false;
+  return line.rawDays < line.minimumDays;
+}
 
 export function BillDocument({ bill, format }: { bill: BillDetail; format: BillFormat }) {
   const thermal = format === 'thermal';
@@ -152,8 +169,13 @@ function RentTable({ bill, thermal }: { bill: BillDetail; thermal: boolean }) {
         </View>
       )}
 
-      {lines.map((line, index) =>
-        thermal ? (
+      {lines.map((line, index) => {
+        // The floor bit on this line: it is charged for more days than the
+        // calendar gave. Saying so on the invoice is the difference between a
+        // rule the contractor agreed to and a number that looks like an error.
+        const atMinimum = atMinimumHire(line);
+
+        return thermal ? (
           <View key={`${line.lotId}-${index}`} style={{ paddingVertical: 1 }}>
             <Text>{line.itemName}</Text>
             <View style={styles.row}>
@@ -162,18 +184,39 @@ function RentTable({ bill, thermal }: { bill: BillDetail; thermal: boolean }) {
               </Text>
               <Text style={styles.amount}>{formatPaise(line.amount)}</Text>
             </View>
+            {atMinimum && (
+              <Text style={styles.minimumNote}>
+                {line.minimumDays}-day minimum ({line.rawDays}d held)
+              </Text>
+            )}
           </View>
         ) : (
           <View key={`${line.lotId}-${index}`} style={styles.lineRow}>
-            <Text style={styles.item}>{line.itemName}</Text>
+            <Text style={styles.item}>
+              {line.itemName}
+              {atMinimum && (
+                <Text style={styles.minimumNote}> · {line.minimumDays}-day minimum</Text>
+              )}
+            </Text>
             <Text style={styles.qty}>{line.qty}</Text>
             <Text style={styles.date}>{formatDay(line.from)}</Text>
             <Text style={styles.date}>{line.to ? formatDay(line.to) : '(open)'}</Text>
-            <Text style={styles.days}>{line.days}</Text>
+            <Text style={styles.days}>
+              {line.days}
+              {atMinimum ? '*' : ''}
+            </Text>
             <Text style={styles.rate}>{formatPaise(line.ratePerDay, { paiseDigits: true })}</Text>
             <Text style={styles.amount}>{formatPaise(line.amount)}</Text>
           </View>
-        ),
+        );
+      })}
+
+      {/* One footnote for the table, not one per line. */}
+      {!thermal && lines.some(atMinimumHire) && (
+        <Text style={[styles.minimumNote, { marginTop: 4 }]}>
+          * Billed at the item&apos;s minimum hire period, which is charged whether or not the
+          equipment comes back sooner.
+        </Text>
       )}
 
       {lines.length === 0 && <Text style={styles.muted}>No rent accrued in this period.</Text>}

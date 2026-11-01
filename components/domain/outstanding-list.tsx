@@ -18,22 +18,23 @@ import { Money, Qty } from '../ui/money';
 export function OutstandingList({
   lines,
   accountId,
-  minimumDays = 0,
 }: {
   lines: OutstandingLine[];
   accountId: string;
-  /** The yard's minimum billing days — rows under it are billed at the floor. */
-  minimumDays?: number;
 }) {
   const perDay = lines.reduce((sum, line) => sum + line.accruingPerDay, 0);
   const soFar = lines.reduce((sum, line) => sum + line.accruedSoFar, 0);
+  const atAnyMinimum = lines.some((line) => line.daysHeld < line.billedDays);
 
   return (
     <div>
       <ul className="space-y-2.5">
         {lines.map((line, index) => {
-          const billedDays = Math.max(line.daysHeld, minimumDays);
-          const atMinimum = minimumDays > 0 && line.daysHeld < minimumDays;
+          // Read from what the engine charged rather than recomputed here. The
+          // floor is per item and frozen at issue, so there is no number a
+          // screen could multiply to arrive at the same answer.
+          const { billedDays } = line;
+          const atMinimum = line.daysHeld < billedDays;
 
           return (
             <li key={line.itemId}>
@@ -67,7 +68,7 @@ export function OutstandingList({
                       trust: days billed × what a day costs = what it has cost. */}
                   <p className="tabular mt-1.5 text-xs text-ink-3">
                     {billedDays} {billedDays === 1 ? 'day' : 'days'}
-                    {atMinimum && ` (min ${minimumDays})`} ×{' '}
+                    {atMinimum && ` (${line.minimumDays}-day minimum, held ${line.daysHeld})`} ×{' '}
                     <Money paise={line.accruingPerDay} paiseDigits /> ={' '}
                     <Money paise={line.accruedSoFar} />
                   </p>
@@ -92,7 +93,8 @@ export function OutstandingList({
         </div>
         <p className="text-xs text-ink-3">
           The amount grows by the /day figure every day until the items come back.
-          {minimumDays > 0 && ` Anything returned before ${minimumDays} days is billed for ${minimumDays}.`}
+          {atAnyMinimum &&
+            ' Rows marked with a minimum are already at their floor — returning them sooner will not reduce the rent.'}
         </p>
       </Card>
     </div>

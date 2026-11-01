@@ -288,11 +288,7 @@ function OutNowPanel({ hub, holding }: { hub: CustomerHub; holding: HubSite[] })
       <p className="mb-2 text-xs text-ink-2">
         Tap a line to take it back · tap a site name for its ledger.
       </p>
-      <OutBySite
-        sites={holding}
-        minimumDays={hub.minimumDays}
-        siteHref={(accountId) => `/accounts/${accountId}`}
-      />
+      <OutBySite sites={holding} siteHref={(accountId) => `/accounts/${accountId}`} />
     </>
   );
 }

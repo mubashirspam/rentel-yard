@@ -55,6 +55,8 @@ const BILL: BillDetail = {
         to: null,
         days: 29,
         daysBilledEarlier: 0,
+        minimumDays: 5,
+        rawDays: 29,
         ratePerDay: 200,
         amount: 580_000,
       },

@@ -22,7 +22,6 @@
  * (accrued-but-unbilled) is derivable from data already in hand.
  */
 
-import { loadBillingConfig } from '../accounts/repository';
 import { getCustomerSites, type CustomerSite } from '../accounts/service';
 import type { StaffSession } from '../auth/guard';
 import { listBillsForAccounts, type BillSummary } from '../bills/service';
@@ -65,8 +64,6 @@ export interface CustomerHub {
   };
   /** Owes more than their agreed limit. A zero limit means no limit. */
   overCreditLimit: boolean;
-  /** The yard's minimum billing days, for the tables that price a short hire. */
-  minimumDays: number;
 }
 
 export async function getCustomerHub(
@@ -86,14 +83,14 @@ export async function getCustomerHub(
   if (!customer) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That customer was not found.');
 
   const { sites, totals } = await getCustomerSites(session, customerId, asOf);
-  const [bills, config] = await Promise.all([
-    listBillsForAccounts(
-      session,
-      sites.map((site) => site.accountId),
-      asOf,
-    ),
-    loadBillingConfig(database, session.orgId),
-  ]);
+  // The billing config used to be read here for its org-wide `minimum_days`.
+  // The floor is per item now and rides on the lots themselves, so the hub has
+  // one fewer round trip to Neon for every contractor screen.
+  const bills = await listBillsForAccounts(
+    session,
+    sites.map((site) => site.accountId),
+    asOf,
+  );
 
   const hubSites: HubSite[] = sites.map((site) => {
     const siteBills = bills.get(site.accountId) ?? [];
@@ -122,6 +119,5 @@ export async function getCustomerHub(
       sitesOut: hubSites.filter((site) => site.qtyOut > 0).length,
     },
     overCreditLimit: customer.creditLimit > 0 && totals.balance > customer.creditLimit,
-    minimumDays: config.minimum_days,
   };
 }

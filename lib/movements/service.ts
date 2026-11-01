@@ -73,8 +73,9 @@ export async function recordMovementBatch(
 
     const items = await loadItems(tx, session.orgId, input.lines.map((line) => line.itemId));
 
-    // §02: rate_snapshot is copied onto every ISSUE at creation, so a later
-    // change to the master rate can never alter historical rent.
+    // §02: rate_snapshot and min_days_snapshot are copied onto every ISSUE at
+    // creation, so a later change to the master rate or the item's minimum
+    // hire period can never alter historical rent.
     const pending: Array<typeof schema.movements.$inferInsert> = input.lines.map((line) => {
       const item = items.get(line.itemId);
       if (!item) {
@@ -92,6 +93,7 @@ export async function recordMovementBatch(
         qty: line.qty,
         rateSnapshot: item.ratePerDay,
         replacementSnapshot: item.replacementRate,
+        minDaysSnapshot: item.minimumDays,
         manualCharge: line.manualCharge ?? null,
         movedAt: input.movedAt,
         gatePassNo: input.gatePassNo ?? null,
@@ -161,6 +163,7 @@ export async function reverseMovement(
         qty: schema.movements.qty,
         rateSnapshot: schema.movements.rateSnapshot,
         replacementSnapshot: schema.movements.replacementSnapshot,
+        minDaysSnapshot: schema.movements.minDaysSnapshot,
       })
       .from(schema.movements)
       .where(
@@ -201,6 +204,7 @@ export async function reverseMovement(
       movedAt: input.movedAt,
       rateSnapshot: original.rateSnapshot,
       replacementSnapshot: original.replacementSnapshot,
+      minDaysSnapshot: original.minDaysSnapshot,
       reversesId: original.id,
       createdAt: new Date().toISOString(),
     };
@@ -228,6 +232,7 @@ export async function reverseMovement(
         qty: original.qty,
         rateSnapshot: original.rateSnapshot,
         replacementSnapshot: original.replacementSnapshot,
+        minDaysSnapshot: original.minDaysSnapshot,
         movedAt: input.movedAt,
         reversesId: original.id,
         remarks: input.reason,
@@ -267,6 +272,7 @@ async function assertBatchReplays(
     movedAt: row.movedAt,
     rateSnapshot: row.rateSnapshot,
     replacementSnapshot: row.replacementSnapshot ?? 0,
+    minDaysSnapshot: row.minDaysSnapshot ?? null,
     manualCharge: row.manualCharge ?? undefined,
     createdAt: now,
   }));
@@ -304,6 +310,7 @@ async function loadItems(tx: Database, orgId: string, itemIds: string[]) {
       name: schema.items.name,
       ratePerDay: schema.items.ratePerDay,
       replacementRate: schema.items.replacementRate,
+      minimumDays: schema.items.minimumDays,
       isActive: schema.items.isActive,
     })
     .from(schema.items)

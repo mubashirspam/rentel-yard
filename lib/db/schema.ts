@@ -225,6 +225,17 @@ export const items = pgTable(
     replacementRate: money('replacement_rate').notNull().default(0),
     /** Paise. §10 wants recovery-vs-cost, which needs the purchase price. */
     purchaseCost: money('purchase_cost').notNull().default(0),
+    /**
+     * The item's minimum hire period in days. Snapshotted onto every ISSUE,
+     * exactly like `ratePerDay`, so editing it here never reprices equipment
+     * already standing on a site.
+     *
+     * Five is the yard's own convention — a span that goes out for one day is
+     * charged the same as one that goes out for five, because the lorry, the
+     * loading and the unloading cost the same either way. Items that should
+     * genuinely bill by the day are set to 1.
+     */
+    minimumDays: integer('minimum_days').notNull().default(5),
     qtyOwned: integer('qty_owned').notNull().default(0),
     isActive: boolean('is_active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -233,6 +244,10 @@ export const items = pgTable(
   (t) => [
     unique('items_org_code_key').on(t.orgId, t.code),
     index('items_org_seq_idx').on(t.orgId, t.serverSeq),
+    // One, not zero: a day is the smallest thing the yard can hire out, and
+    // `dayCount` already floors at one. Zero would read as "no minimum" while
+    // behaving identically to one, which is a distinction nobody can act on.
+    check('items_minimum_days_check', sql`${t.minimumDays} >= 1`),
   ],
 );
 
@@ -306,6 +321,15 @@ export const movements = pgTable(
     rateSnapshot: money('rate_snapshot').notNull(),
     /** Paise per unit, frozen at issue time. */
     replacementSnapshot: money('replacement_snapshot').notNull().default(0),
+    /**
+     * The item's minimum hire days, frozen at issue time.
+     *
+     * Nullable on purpose. Null means "this lot predates per-item minimums" and
+     * the engine falls back to the org's `settings.billing.minimum_days`, which
+     * is what those lots were actually billed at. Backfilling a 5 would rewrite
+     * history — the one thing §02 forbids.
+     */
+    minDaysSnapshot: integer('min_days_snapshot'),
     /** Paise per unit. Overrides the replacement rate when the admin typed one. */
     manualCharge: money('manual_charge'),
     movedAt: date('moved_at').notNull(),

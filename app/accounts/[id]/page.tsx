@@ -67,6 +67,12 @@ export default async function AccountPage({
   const daysOpen = differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1;
   const qtyOut = detail.outstanding.reduce((sum, line) => sum + line.qtyOut, 0);
   const perDay = detail.outstanding.reduce((sum, line) => sum + line.accruingPerDay, 0);
+  // The longest-standing line, so the tile's days and its rent describe one
+  // lending rather than two.
+  const oldestOut = detail.outstanding.reduce<(typeof detail.outstanding)[number] | null>(
+    (oldest, line) => (oldest === null || line.daysHeld > oldest.daysHeld ? line : oldest),
+    null,
+  );
 
   const billedThisMonth = bills
     .filter((bill) => bill.issuedAt.slice(0, 7) === asOf.slice(0, 7))
@@ -92,7 +98,11 @@ export default async function AccountPage({
       />
 
       {showMoney && (
-        <BalanceCard balance={balance} asOf={asOf} minimumDays={detail.config.minimum_days} />
+        <BalanceCard
+          balance={balance}
+          asOf={asOf}
+          atMinimum={detail.outstanding.some((line) => line.daysHeld < line.billedDays)}
+        />
       )}
 
       {showMoney && (
@@ -148,14 +158,11 @@ export default async function AccountPage({
                   earliest === null || line.since < earliest ? line.since : earliest,
                 null,
               ),
-              daysOut: detail.outstanding.reduce(
-                (longest, line) => Math.max(longest, line.daysHeld),
-                0,
-              ),
+              daysOut: oldestOut?.daysHeld ?? 0,
+              billedDays: oldestOut?.billedDays ?? 0,
               outstanding: detail.outstanding,
             },
           ]}
-          minimumDays={detail.config.minimum_days}
         />
       ) : (
         <EmptyState title="Nothing is out on this site">

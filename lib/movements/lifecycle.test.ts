@@ -69,15 +69,20 @@ beforeAll(async () => {
   customerId = customer.id;
 
   const [jack] = await db.query<{ id: string }>(
-    `insert into items (org_id, name, code, rate_per_day, replacement_rate, qty_owned)
-     values ($1, 'Jack 3.0m', 'JCK30', $2, $3, 600) returning id`,
+    // `minimum_days` is pinned to 1 throughout this file — one concern per
+    // test. This one walks the movement lifecycle and every figure below is
+    // worked by hand from days actually held; a five-day floor would restate
+    // half of them without exercising anything the lifecycle owns. The floor
+    // itself is pinned in `lib/accrual/minimum-days.test.ts`.
+    `insert into items (org_id, name, code, rate_per_day, replacement_rate, qty_owned, minimum_days)
+     values ($1, 'Jack 3.0m', 'JCK30', $2, $3, 600, 1) returning id`,
     [org.id, RATE_JACK, REPLACEMENT_JACK],
   );
   jackId = jack.id;
 
   const [span] = await db.query<{ id: string }>(
-    `insert into items (org_id, name, code, rate_per_day, replacement_rate, qty_owned)
-     values ($1, 'Span 12ft', 'SPN12', $2, 90000, 250) returning id`,
+    `insert into items (org_id, name, code, rate_per_day, replacement_rate, qty_owned, minimum_days)
+     values ($1, 'Span 12ft', 'SPN12', $2, 90000, 250, 1) returning id`,
     [org.id, RATE_SPAN],
   );
   spanId = span.id;
@@ -140,8 +145,8 @@ describe('M3 — a full account lifecycle', () => {
 
     const detail = await getAccountDetail(session, accountId, '2026-06-15');
 
-    // Both lots open, charged for the days actually held (no minimum — the
-    // owner's rule). Jacks: 01-Jun → 15-Jun is 14 days inclusive_start,
+    // Both lots open, charged for the days actually held (these items are set
+    // to a one-day minimum). Jacks: 01-Jun → 15-Jun is 14 days inclusive_start,
     // 100 × 14 × ₹2 = ₹2,800. Spans went out today, so one day:
     // 40 × 1 × ₹4 = ₹160.
     expect(detail.accrual.rentTotal).toBe(100 * 14 * RATE_JACK + 40 * 1 * RATE_SPAN);

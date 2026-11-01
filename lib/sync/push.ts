@@ -148,6 +148,7 @@ async function applyMovementBatch(
         movedAt: payload.movedAt,
         rateSnapshot: item.ratePerDay,
         replacementSnapshot: item.replacementRate,
+        minDaysSnapshot: item.minimumDays,
         manualCharge: line.manualCharge ?? undefined,
         createdAt: new Date().toISOString(),
       };
@@ -181,6 +182,11 @@ async function applyMovementBatch(
         qty: line.qty,
         rateSnapshot: item.ratePerDay,
         replacementSnapshot: item.replacementRate,
+        // Snapshotted when the push lands, not when the device queued it —
+        // same as the rate. A gate pass written offline on Monday and synced on
+        // Friday bills at Friday's master, which is the rule the yard already
+        // lives with for rates.
+        minDaysSnapshot: item.minimumDays,
         manualCharge: line.manualCharge ?? null,
         movedAt: payload.movedAt,
         gatePassNo: payload.gatePassNo ?? null,
@@ -373,6 +379,7 @@ async function loadItems(tx: Database, orgId: string, itemIds: string[]) {
       name: schema.items.name,
       ratePerDay: schema.items.ratePerDay,
       replacementRate: schema.items.replacementRate,
+      minimumDays: schema.items.minimumDays,
     })
     .from(schema.items)
     .where(and(eq(schema.items.orgId, orgId), inArray(schema.items.id, itemIds)));

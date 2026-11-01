@@ -1,23 +1,44 @@
 /**
  * Billing configuration defaults and validation (§03.1).
  *
- * `minimum_days: 0` is **the yard owner's answer**, not §03.1's number. The
- * spec proposes a 15-day minimum; the owner asked for rent to follow the days
- * actually held — issue today and one day is owed, not fifteen. It is the
- * simplest rule to explain across a counter, and it is what this yard charges.
+ * ## `minimum_days` is now a fallback, not the rule
  *
- * The engine's minimum-days machinery is untouched and still tested: §03.5's
- * twelve vectors are specified against a 15-day floor and `engine.test.ts`
- * passes that explicitly. Any yard that wants a minimum sets one in
- * `settings.billing` and the arithmetic is waiting for it.
+ * The floor that actually bills is **per item** — `items.minimum_days`, frozen
+ * onto every ISSUE as `min_days_snapshot`, defaulting to five. A span that goes
+ * out for one day costs the same as one that goes out for five, because the
+ * lorry and the loading cost the same either way; items that genuinely bill by
+ * the day are set to 1 on the items screen.
+ *
+ * This org-level number survives for exactly one job: valuing lots issued
+ * before per-item minimums existed, which carry no snapshot. It stays 0 —
+ * that is what those lots were billed at, and backfilling anything else would
+ * rewrite history behind issued bills.
+ *
+ * §03.5's twelve vectors are specified against a 15-day floor and
+ * `engine.test.ts` still passes that explicitly, now via the snapshot.
  */
 
 import { LedgerError, ERROR_CODES } from '../errors';
 import type { BillingConfig } from './types';
 
+/**
+ * The minimum hire period a new item starts on, and the stand-in wherever a
+ * row is read that predates the column.
+ *
+ * Five is the yard's convention, not a law: a span that goes out for one day
+ * costs the same as one that goes out for five, because the lorry, the loading
+ * and the unloading cost the same either way. Items that should genuinely bill
+ * by the day are set to 1 on the items screen.
+ *
+ * The database carries the same default so the two cannot drift; this constant
+ * exists for the paths that never see a database row — a new-item form, a
+ * mirrored record on a phone.
+ */
+export const DEFAULT_ITEM_MINIMUM_DAYS = 5;
+
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
   day_count_mode: 'inclusive_start',
-  /** Owner's decision: charge the days actually held. See the note above. */
+  /** Fallback for pre-snapshot lots only. See the note above. */
   minimum_days: 0,
   minimum_days_applies: 'per_issue_lot',
   rounding: 'nearest_rupee',

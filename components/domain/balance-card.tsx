@@ -16,12 +16,17 @@ import { Card } from '../ui/layout';
 export function BalanceCard({
   balance,
   asOf,
-  minimumDays,
+  atMinimum = false,
 }: {
   balance: AccountBalance;
   asOf: string;
-  /** Shown as a footnote — it is the figure most likely to be disputed. */
-  minimumDays?: number;
+  /**
+   * True when something on this account is still inside its minimum hire
+   * period. A footnote, not a figure — the per-item floors are named on the
+   * rows they apply to, and repeating a list of them here would only invite
+   * the reader to add them up.
+   */
+  atMinimum?: boolean;
 }) {
   const tone = balance.status === 'due' ? 'due' : balance.status === 'settled' ? 'settled' : undefined;
 
@@ -45,9 +50,10 @@ export function BalanceCard({
         <Line label="Paid" paise={-balance.paidTotal} />
       </dl>
 
-      {minimumDays !== undefined && minimumDays > 0 && (
+      {atMinimum && (
         <p className="mt-3 border-t border-rule pt-2 text-xs text-ink-3">
-          Every issue is billed for at least {minimumDays} days, per the yard&apos;s billing rules.
+          Some of this rent is at an item&apos;s minimum hire period — the rows below marked with a
+          minimum are charged for it whether or not they come back sooner.
         </p>
       )}
     </Card>

@@ -33,6 +33,9 @@ const ISSUED_ON = '2026-08-03';
 
 const RATE = 3_900; // ₹39.00 per unit per day
 
+/** The schema default, left alone here so the test sees what a real yard sees. */
+const MINIMUM_DAYS = 5;
+
 let db: TestDatabase;
 let session: StaffSession;
 let accountId: string;
@@ -109,15 +112,17 @@ describe('a list row dates the lending, not the khata', () => {
   it('counts days from the lending, so the rent on the same row adds up', async () => {
     const [row] = await listAccounts(session, { status: 'open' }, TODAY);
 
-    // 03-Aug → 04-Aug is one day held. One unit at ₹39 a day is ₹39, which is
-    // what the account screen shows and what a contractor would be billed.
+    // 03-Aug → 04-Aug is one day held. The sheet carries the yard's default
+    // five-day minimum, so one unit is billed five days at ₹39 — ₹195.
     expect(row.daysOut).toBe(1);
+    expect(row.billedDays).toBe(MINIMUM_DAYS);
     expect(row.perDay).toBe(RATE);
-    expect(row.accruedRent).toBe(RATE);
+    expect(row.accruedRent).toBe(RATE * MINIMUM_DAYS);
 
-    // The property the old tile broke: the three figures printed side by side
-    // have to describe the same span of time.
-    expect(row.perDay * row.daysOut).toBe(row.accruedRent);
+    // The property the old tile broke: the figures printed side by side have to
+    // describe the same span of time. Under a minimum that span is the *billed*
+    // one — printing `daysOut` beside this rent is the same lie in new clothes.
+    expect(row.perDay * row.billedDays).toBe(row.accruedRent);
   });
 
   it('still reports the khata’s own age separately', async () => {

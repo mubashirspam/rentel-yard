@@ -16,6 +16,7 @@ import {
   type AccountBalance,
   type AccrualResult,
   type BillingConfig,
+  type OpenLot,
 } from '../accrual';
 import type { StaffSession } from '../auth/guard';
 import { db, schema, withTransaction, type Database } from '../db/client';
@@ -40,6 +41,15 @@ export interface OutstandingLine {
   /** Oldest still-open lot for this item. */
   since: string;
   daysHeld: number;
+  /**
+   * This item's minimum hire period, as frozen onto the oldest open lot.
+   *
+   * Per item, not per yard: a span can be on five days while a centering sheet
+   * is on one, on the same site, on the same day.
+   */
+  minimumDays: number;
+  /** `daysHeld` after the minimum — the days this line is actually charged. */
+  billedDays: number;
   /** Paise per day for everything of this item still out. */
   accruingPerDay: number;
   /** Paise accrued so far. */
@@ -388,6 +398,18 @@ export interface AccountListRow extends AccountRow {
    */
   daysOut: number;
   /**
+   * Days the oldest open lot is actually being *charged* for — `daysOut` once
+   * its item's minimum hire period has been applied.
+   *
+   * Distinct from `daysOut` because they part company for the first few days of
+   * every lending: a span with a five-day minimum returned on day one was held
+   * one day and billed five. A tile that prints "1 day" beside five days' rent
+   * reopens the very confusion `outSince` was added to close, so screens print
+   * this and keep `daysOut` for the question "how long has it been standing
+   * there".
+   */
+  billedDays: number;
+  /**
    * Units that have come off this site — returned, returned damaged, or written
    * off as lost. Anything the ledger has closed.
    *
@@ -495,7 +517,8 @@ export async function listAccounts(
         (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
         null,
       );
-      const daysOut = openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0);
+      const oldest = oldestOpenLot(openLots);
+      const daysOut = oldest?.daysHeld ?? 0;
 
       // A closed rent slice is a slice whose units came back. A lot returned in
       // three loads yields three of them, so summing the quantities counts the
@@ -512,6 +535,7 @@ export async function listAccounts(
         qtyReturned,
         outSince,
         daysOut,
+        billedDays: oldest?.billedDays ?? 0,
         daysOpen: differenceInCalendarDays(account.closedOn ?? asOf, account.openedOn) + 1,
         accruedRent: accrual.rentTotal + accrual.damageTotal,
         perDay: accrual.openLots.reduce((sum, lot) => sum + lot.qty * lot.ratePerDay, 0),
@@ -651,6 +675,22 @@ interface ItemLabel {
   unit: string;
 }
 
+/**
+ * The lot a list tile is describing: the one that has been standing longest.
+ *
+ * "Oldest", not an average, because it is the number that decides whether
+ * someone rings the contractor — one jack sitting for forty days is the story,
+ * however much else went out yesterday. Every figure a tile prints about the
+ * lending has to come from this same lot, or "days" and "rent" end up
+ * describing different lendings.
+ */
+function oldestOpenLot(openLots: readonly OpenLot[]): OpenLot | null {
+  return openLots.reduce<OpenLot | null>(
+    (oldest, lot) => (oldest === null || lot.daysHeld > oldest.daysHeld ? lot : oldest),
+    null,
+  );
+}
+
 /** One of a contractor's sites, with what is standing on it. */
 export interface CustomerSite {
   accountId: string;
@@ -663,6 +703,8 @@ export interface CustomerSite {
   /** The oldest lot still out on this site. Null when nothing is out. */
   outSince: string | null;
   daysOut: number;
+  /** `daysOut` after that lot's minimum hire period. See `AccountListRow`. */
+  billedDays: number;
   outstanding: OutstandingLine[];
 }
 
@@ -738,7 +780,8 @@ export async function getCustomerSites(
         (earliest, lot) => (earliest === null || lot.from < earliest ? lot.from : earliest),
         null,
       ),
-      daysOut: openLots.reduce((longest, lot) => Math.max(longest, lot.daysHeld), 0),
+      daysOut: oldestOpenLot(openLots)?.daysHeld ?? 0,
+      billedDays: oldestOpenLot(openLots)?.billedDays ?? 0,
       outstanding: buildOutstanding(accrual, items, asOf),
     };
   });
@@ -782,6 +825,8 @@ function buildOutstanding(
       if (lot.from < existing.since) {
         existing.since = lot.from;
         existing.daysHeld = lot.daysHeld;
+        existing.minimumDays = lot.minimumDays;
+        existing.billedDays = lot.billedDays;
       }
       continue;
     }
@@ -794,6 +839,11 @@ function buildOutstanding(
       qtyOut: lot.qty,
       since: lot.from,
       daysHeld: lot.daysHeld,
+      // Every lot of one item on one account shares the item's floor unless the
+      // master changed mid-job, so the oldest lot's is the honest one to print
+      // beside its own day count.
+      minimumDays: lot.minimumDays,
+      billedDays: lot.billedDays,
       accruingPerDay: lot.qty * lot.ratePerDay,
       accruedSoFar: lot.accruedAmount,
     });

@@ -65,12 +65,9 @@ function byDate(lines: OutstandingLine[]): DateGroup[] {
 
 export function OutBySite({
   sites,
-  minimumDays = 0,
   siteHref,
 }: {
   sites: CustomerSite[];
-  /** The yard's minimum billing days — groups under it are billed at the floor. */
-  minimumDays?: number;
   /**
    * Makes the site's own band a link, for the screens that have somewhere
    * deeper to send it — the customer hub, whose *Out now* tab is the only way
@@ -129,8 +126,11 @@ export function OutBySite({
             )}
 
             {byDate(site.outstanding).map((group) => {
-              const billedDays = Math.max(group.daysHeld, minimumDays);
-              const atMinimum = minimumDays > 0 && group.daysHeld < minimumDays;
+              // Days *held* is what the whole group shares — it is the same
+              // lorry on the same day. Days *billed* is not: since the floor
+              // became per item, a span and a sheet that left together can be
+              // charged five days and one. So the heading keeps the shared
+              // fact and the floor is marked on the rows it actually bites.
               const groupTotal = group.lines.reduce((sum, line) => sum + line.accruedSoFar, 0);
               const groupQty = group.lines.reduce((sum, line) => sum + line.qtyOut, 0);
 
@@ -142,7 +142,7 @@ export function OutBySite({
                * everywhere else for "pending too long".
                */
               const band =
-                billedDays > 30 ? 'bg-amber-soft text-amber' : 'bg-steel-soft text-steel';
+                group.daysHeld > 30 ? 'bg-amber-soft text-amber' : 'bg-steel-soft text-steel';
 
               return (
                 <section key={group.since}>
@@ -153,12 +153,9 @@ export function OutBySite({
                   >
                     <span className="text-base font-bold">{formatDayWeekday(group.since)}</span>
                     <span className="shrink-0 text-right">
-                      <span className="tabular text-base font-bold">{formatDays(billedDays)}</span>
-                      {atMinimum && (
-                        <span className="block text-[11px] font-medium opacity-80">
-                          {minimumDays}-day minimum
-                        </span>
-                      )}
+                      <span className="tabular text-base font-bold">
+                        {formatDays(group.daysHeld)}
+                      </span>
                     </span>
                   </div>
 
@@ -182,7 +179,18 @@ export function OutBySite({
                               the admin matches against the stack on the lorry,
                               and "Jack (adjustable prop)…" is not something you
                               can count against. */}
-                          <span className="font-medium leading-snug">{line.itemName}</span>
+                          <span className="font-medium leading-snug">
+                            {line.itemName}
+                            {/* Only where it bites. A row billed for more days
+                                than it has been held owes the difference to
+                                this item's minimum, and the amount to its
+                                right makes no sense without it. */}
+                            {line.daysHeld < line.billedDays && (
+                              <span className="ml-1.5 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-amber">
+                                {line.billedDays}d min
+                              </span>
+                            )}
+                          </span>
                           <span className="tabular text-right font-bold">
                             {line.qtyOut}
                             <span className="ml-0.5 text-[10px] font-normal text-ink-2">

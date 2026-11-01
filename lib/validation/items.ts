@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { DEFAULT_ITEM_MINIMUM_DAYS } from '../accrual';
 import { paise, shortText } from './common';
 
 /**
@@ -26,6 +27,15 @@ const itemFields = z.object({
   /** Paise per unit, charged on damage or loss. */
   replacementRate: paise,
   purchaseCost: paise,
+  /**
+   * Minimum hire days. One means "bill the days actually held" — `dayCount`
+   * already floors at one, so zero would behave identically while reading as
+   * something different, and the database rejects it.
+   *
+   * Capped at a year because the only way past it is a typo, and a typo here
+   * silently multiplies every bill the item appears on.
+   */
+  minimumDays: z.number().int().min(1).max(365),
   qtyOwned: z.number().int().nonnegative(),
   sortOrder: z.number().int(),
 });
@@ -34,6 +44,7 @@ export const createItemSchema = itemFields.extend({
   unit: z.string().trim().min(1).max(16).default('nos'),
   replacementRate: paise.default(0),
   purchaseCost: paise.default(0),
+  minimumDays: z.number().int().min(1).max(365).default(DEFAULT_ITEM_MINIMUM_DAYS),
   qtyOwned: z.number().int().nonnegative().default(0),
   sortOrder: z.number().int().default(0),
 });

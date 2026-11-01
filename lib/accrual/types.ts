@@ -29,6 +29,13 @@ export interface Movement {
   rateSnapshot: number;
   /** Paise per unit, frozen at issue time, charged on damage or loss. */
   replacementSnapshot: number;
+  /**
+   * The item's minimum hire days, frozen onto the ISSUE row.
+   *
+   * Undefined or null means the lot predates per-item minimums, and the org's
+   * `config.minimum_days` applies instead — which is what it was billed at.
+   */
+  minDaysSnapshot?: number | null;
   /** Paise per unit. Overrides `replacementSnapshot` when the admin typed one. */
   manualCharge?: number;
   /** Set on REVERSAL rows: the id of the movement being cancelled. */
@@ -72,6 +79,8 @@ export interface RentLine {
   days: number;
   /** Days the calendar actually gives, before the floor. */
   rawDays: number;
+  /** The floor that was in force for this lot — the item's, or the org's. */
+  minimumDays: number;
   minimumApplied: boolean;
   /** Paise per unit per day. */
   ratePerDay: number;
@@ -103,6 +112,16 @@ export interface OpenLot {
   from: IsoDate;
   /** Calendar days held as of the valuation date, before any minimum. */
   daysHeld: number;
+  /** The floor in force for this lot. */
+  minimumDays: number;
+  /**
+   * Days actually charged — `max(daysHeld, minimumDays)`.
+   *
+   * Carried rather than left to the caller because every screen that showed
+   * "days" was recomputing this from an org-wide number, and once the floor is
+   * per item there is no org-wide number left to recompute it from.
+   */
+  billedDays: number;
   ratePerDay: number;
   /** Paise accrued so far on this lot. */
   accruedAmount: number;

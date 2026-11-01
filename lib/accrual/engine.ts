@@ -31,6 +31,8 @@ interface WorkingLot {
   itemId: ItemId;
   from: IsoDate;
   rate: number;
+  /** The minimum hire days this lot left the yard under. */
+  minDays: number;
   remaining: number;
 }
 
@@ -84,6 +86,10 @@ export function accrue(
           itemId,
           from: movement.movedAt,
           rate: movement.rateSnapshot,
+          // The item's own floor, frozen at issue. Lots issued before per-item
+          // minimums existed carry nothing and fall back to the org's rule,
+          // which is what they were billed at.
+          minDays: movement.minDaysSnapshot ?? cfg.minimum_days,
           remaining: movement.qty,
         });
         continue;
@@ -145,6 +151,8 @@ export function accrue(
         qty: lot.remaining,
         from: lot.from,
         daysHeld: line.rawDays,
+        minimumDays: lot.minDays,
+        billedDays: line.days,
         ratePerDay: lot.rate,
         accruedAmount: line.amount,
       });
@@ -277,7 +285,7 @@ function billSlice(
   const rawDays = dayCount(lot.from, through, config);
   // The minimum is evaluated per slice of an issue lot, so a lot returned in
   // three parts can have the floor bite on the earliest part only.
-  const days = Math.max(rawDays, config.minimum_days);
+  const days = Math.max(rawDays, lot.minDays);
 
   return {
     itemId: lot.itemId,
@@ -288,6 +296,7 @@ function billSlice(
     through,
     days,
     rawDays,
+    minimumDays: lot.minDays,
     minimumApplied: days > rawDays,
     ratePerDay: lot.rate,
     amount: roundLineTotal(qty * days * lot.rate, config.rounding),

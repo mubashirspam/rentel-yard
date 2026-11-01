@@ -70,6 +70,7 @@ export function AccountPicker({
               qtyOut: 0,
               outSince: null,
               daysOut: 0,
+              billedDays: 0,
               qtyReturned: 0,
               daysOpen: 0,
               accruedRent: 0,

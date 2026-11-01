@@ -397,3 +397,94 @@ describe('billing only what has come back', () => {
     );
   });
 });
+
+describe('a minimum hire period across two bills', () => {
+  const MIN = 5;
+
+  /** A span carrying the yard's five-day minimum, frozen at issue. */
+  function issueWithMinimum(id: string, qty: number, movedAt: string): Movement {
+    return { ...issue(id, SPAN, qty, movedAt, RATE_SPAN), minDaysSnapshot: MIN };
+  }
+
+  it('charges the floor once and nothing again when the units come back inside it', () => {
+    // This is the case that would double-bill if the draft compared amounts
+    // instead of days. 10 spans out 01-Jun, billed on 03-Jun while still out:
+    // the floor makes that 5 days, 10 × 5 × ₹4 = ₹200 — more days than the
+    // calendar has yet given. They come back on 04-Jun, still inside the floor.
+    const out = [issueWithMinimum('lot-1', 10, '2026-06-01')];
+
+    const june3 = buildBillDraft({
+      current: accrue(out, CONFIG, '2026-06-03'),
+      prior: null,
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-06-01',
+      periodTo: '2026-06-03',
+      config: CONFIG,
+    });
+
+    expect(june3.lines.map((line) => [line.qty, line.days])).toEqual([[10, MIN]]);
+    expect(june3.rentTotal).toBe(10 * MIN * RATE_SPAN);
+
+    // Second bill, after the return. The lot owes 5 days in total and 5 have
+    // been charged, so the line is dropped rather than billed for zero.
+    const returned = [...out, returns('r-1', SPAN, 10, '2026-06-04')];
+    const june30 = buildBillDraft({
+      current: accrue(returned, CONFIG, '2026-06-30'),
+      prior: accrue(returned, CONFIG, '2026-06-03'),
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-06-04',
+      periodTo: '2026-06-30',
+      config: CONFIG,
+      previousOpenDays: june3.openDaysBilledByLot,
+    });
+
+    expect(june30.lines).toEqual([]);
+    expect(june30.rentTotal).toBe(0);
+
+    // The property the whole scheme rests on, with a floor in play: what the
+    // two bills charged is exactly what the ledger says the lot ever owed.
+    expect(june3.rentTotal + june30.rentTotal).toBe(
+      accrue(returned, CONFIG, '2026-06-30').rentTotal,
+    );
+  });
+
+  it('charges only the days past the floor when the lot stays out', () => {
+    // Same lot billed at the floor on 03-Jun, then held to 10-Jun: 9 days run,
+    // 5 already charged, so 4 remain. 10 × 4 × ₹4 = ₹160.
+    const out = [issueWithMinimum('lot-1', 10, '2026-06-01')];
+
+    const june3 = buildBillDraft({
+      current: accrue(out, CONFIG, '2026-06-03'),
+      prior: null,
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-06-01',
+      periodTo: '2026-06-03',
+      config: CONFIG,
+    });
+
+    const june10 = buildBillDraft({
+      current: accrue(out, CONFIG, '2026-06-10'),
+      prior: accrue(out, CONFIG, '2026-06-03'),
+      adjustments: [],
+      itemNames: ITEM_NAMES,
+      periodFrom: '2026-06-04',
+      periodTo: '2026-06-10',
+      config: CONFIG,
+      previousOpenDays: june3.openDaysBilledByLot,
+    });
+
+    expect(june10.lines.map((line) => [line.qty, line.days])).toEqual([[10, 4]]);
+    expect(june3.rentTotal + june10.rentTotal).toBe(accrue(out, CONFIG, '2026-06-10').rentTotal);
+  });
+
+  it('carries the floor onto the line so the invoice can explain itself', () => {
+    const bill = draft([issueWithMinimum('lot-1', 10, '2026-06-01')], '2026-06-01', '2026-06-03', {
+      first: true,
+    });
+
+    expect(bill.lines[0]).toMatchObject({ days: MIN, rawDays: 2, minimumDays: MIN });
+  });
+});

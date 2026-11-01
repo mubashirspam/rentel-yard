@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button, FormError, TextInput } from '@/components/ui/field';
 import { Card, Chip, SectionTitle } from '@/components/ui/layout';
 import { Money } from '@/components/ui/money';
+import { DEFAULT_ITEM_MINIMUM_DAYS } from '@/lib/accrual';
 import { patchJson, postJson } from '@/lib/api/client';
 import type { StockRow } from '@/lib/stock/service';
 import { formatPaise, rupeesToPaise } from '@/lib/money';
@@ -12,10 +13,11 @@ import { formatPaise, rupeesToPaise } from '@/lib/money';
 /**
  * The item master (§01, super_admin only).
  *
- * Editing a rate here changes **future issues only** — every ISSUE carries its
- * own `rate_snapshot` (§02), so nothing already on a site is repriced. The
- * screen says so, because it is the assumption most likely to be wrong in
- * someone's head when they type a new number.
+ * Editing a rate or a minimum hire period here changes **future issues only** —
+ * every ISSUE carries its own `rate_snapshot` and `min_days_snapshot` (§02), so
+ * nothing already on a site is repriced. The screen says so, because it is the
+ * assumption most likely to be wrong in someone's head when they type a new
+ * number.
  */
 export function ItemsScreen({ initialItems }: { initialItems: StockRow[] }) {
   const [items, setItems] = useState(initialItems);
@@ -28,8 +30,8 @@ export function ItemsScreen({ initialItems }: { initialItems: StockRow[] }) {
   return (
     <>
       <p className="mb-4 rounded-xl border border-rule bg-card p-4 text-sm text-ink-2">
-        A rate change applies to equipment issued from now on. Anything already out keeps the rate it
-        left the yard at, so no bill can change under a contractor.
+        A change here applies to equipment issued from now on. Anything already out keeps the rate
+        and the minimum hire period it left the yard at, so no bill can change under a contractor.
       </p>
 
       <ul className="space-y-3">
@@ -61,6 +63,7 @@ function ItemRow({ item, onChange }: { item: StockRow; onChange: (item: StockRow
     formatPaise(item.replacementRate, { symbol: false }),
   );
   const [qtyOwned, setQtyOwned] = useState(String(item.qtyOwned));
+  const [minimumDays, setMinimumDays] = useState(String(item.minimumDays));
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -103,7 +106,13 @@ function ItemRow({ item, onChange }: { item: StockRow; onChange: (item: StockRow
       return;
     }
 
-    await save({ ...rates, qtyOwned: Number(qtyOwned) });
+    const days = Number(minimumDays);
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      setError('Minimum hire days must be a whole number between 1 and 365.');
+      return;
+    }
+
+    await save({ ...rates, qtyOwned: Number(qtyOwned), minimumDays: days });
   }
 
   return (
@@ -122,8 +131,9 @@ function ItemRow({ item, onChange }: { item: StockRow; onChange: (item: StockRow
             </p>
             <p className="text-sm text-ink-2">
               <Money paise={item.ratePerDay} paiseDigits />
-              /day · replacement <Money paise={item.replacementRate} /> · {item.qtyOwned} owned ·{' '}
-              {item.qtyOut} out
+              /day · min{' '}
+              {item.minimumDays === 1 ? 'none' : `${item.minimumDays} days`} · replacement{' '}
+              <Money paise={item.replacementRate} /> · {item.qtyOwned} owned · {item.qtyOut} out
             </p>
           </div>
           {!editing && (
@@ -159,7 +169,19 @@ function ItemRow({ item, onChange }: { item: StockRow; onChange: (item: StockRow
                 value={qtyOwned}
                 onChange={(event) => setQtyOwned(event.target.value.replace(/\D/g, ''))}
               />
+              <TextInput
+                id={`minimum-${item.id}`}
+                label="Minimum hire days"
+                inputMode="numeric"
+                value={minimumDays}
+                onChange={(event) => setMinimumDays(event.target.value.replace(/\D/g, ''))}
+              />
             </div>
+
+            <p className="mb-3 text-xs text-ink-3">
+              A hire shorter than this is billed for this many days. Set it to 1 to charge only the
+              days actually held.
+            </p>
 
             <div className="flex flex-wrap gap-3">
               <Button type="submit" disabled={busy}>
@@ -205,6 +227,7 @@ function NewItemForm({
     ratePerDay: '',
     replacementRate: '',
     qtyOwned: '',
+    minimumDays: String(DEFAULT_ITEM_MINIMUM_DAYS),
   });
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -232,11 +255,13 @@ function NewItemForm({
         code: form.code.trim() === '' ? null : form.code.trim(),
         unit: form.unit.trim() === '' ? 'nos' : form.unit.trim(),
         qtyOwned: Number(form.qtyOwned || 0),
+        minimumDays: Number(form.minimumDays || DEFAULT_ITEM_MINIMUM_DAYS),
         ...rates,
       });
 
       onCreated({
         ...payload.item,
+        minimumDays: Number(form.minimumDays || DEFAULT_ITEM_MINIMUM_DAYS),
         qtyOut: 0,
         qtyLost: 0,
         qtyAvailable: Number(form.qtyOwned || 0),
@@ -284,7 +309,18 @@ function NewItemForm({
           inputMode="numeric"
           {...field('qtyOwned')}
         />
+        <TextInput
+          id="new-item-minimum"
+          label="Minimum hire days"
+          inputMode="numeric"
+          {...field('minimumDays')}
+        />
       </div>
+
+      <p className="mb-3 text-xs text-ink-3">
+        A hire shorter than the minimum is billed for it. Set it to 1 to charge only the days
+        actually held.
+      </p>
 
       <div className="flex gap-3">
         <Button type="submit" disabled={busy || !form.name.trim()}>

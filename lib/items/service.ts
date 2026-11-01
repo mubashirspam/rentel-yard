@@ -1,10 +1,11 @@
 /**
  * The item master (§01).
  *
- * Editing a rate here affects only future issues — every ISSUE carries its own
- * `rate_snapshot` (§02, §03.3). There is deliberately no rate-history table in
- * v1: a genuine renegotiation is recorded as a REVERSAL plus a fresh ISSUE at
- * the new rate on the changeover date.
+ * Editing a rate or a minimum hire period here affects only future issues —
+ * every ISSUE carries its own `rate_snapshot` and `min_days_snapshot` (§02,
+ * §03.3). There is deliberately no rate-history table in v1: a genuine
+ * renegotiation is recorded as a REVERSAL plus a fresh ISSUE at the new terms
+ * on the changeover date.
  */
 
 import { and, asc, eq } from 'drizzle-orm';
@@ -36,6 +37,7 @@ export async function createItem(session: StaffSession, input: CreateItemInput) 
       ratePerDay: input.ratePerDay,
       replacementRate: input.replacementRate,
       purchaseCost: input.purchaseCost,
+      minimumDays: input.minimumDays,
       qtyOwned: input.qtyOwned,
       sortOrder: input.sortOrder,
     })
@@ -65,6 +67,7 @@ export async function updateItem(
       ...(input.ratePerDay === undefined ? {} : { ratePerDay: input.ratePerDay }),
       ...(input.replacementRate === undefined ? {} : { replacementRate: input.replacementRate }),
       ...(input.purchaseCost === undefined ? {} : { purchaseCost: input.purchaseCost }),
+      ...(input.minimumDays === undefined ? {} : { minimumDays: input.minimumDays }),
       ...(input.qtyOwned === undefined ? {} : { qtyOwned: input.qtyOwned }),
       ...(input.sortOrder === undefined ? {} : { sortOrder: input.sortOrder }),
       ...(input.isActive === undefined ? {} : { isActive: input.isActive }),

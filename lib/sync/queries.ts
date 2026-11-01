@@ -15,7 +15,7 @@
  */
 
 import { accrue, type BillingConfig, type Movement } from '../accrual';
-import { DEFAULT_BILLING_CONFIG } from '../accrual';
+import { DEFAULT_BILLING_CONFIG, DEFAULT_ITEM_MINIMUM_DAYS } from '../accrual';
 import type { OutstandingLine } from '../accounts/service';
 import type { StockRow } from '../stock/service';
 import { availabilityByItem, isLowStock, qtyAvailable } from './availability';
@@ -29,6 +29,7 @@ interface MirrorItem {
   qtyOwned: number;
   ratePerDay: number;
   replacementRate: number;
+  minimumDays: number;
   isActive: boolean;
   sortOrder?: number;
 }
@@ -42,6 +43,7 @@ interface MirrorMovement {
   movedAt: string;
   rateSnapshot: number;
   replacementSnapshot: number;
+  minDaysSnapshot?: number | null;
   manualCharge?: number | null;
   reversesId?: string | null;
   createdAt: string;
@@ -92,6 +94,9 @@ export async function mirrorStock(): Promise<StockRow[]> {
         qtyAvailable: available,
         ratePerDay: item.ratePerDay,
         replacementRate: item.replacementRate,
+        // Mirrored rows predating the column carry nothing; the schema default
+        // is the honest stand-in until the next pull refreshes them.
+        minimumDays: item.minimumDays ?? DEFAULT_ITEM_MINIMUM_DAYS,
         isActive: item.isActive,
         isNegative: available < 0,
         isLow: isLowStock(item.qtyOwned, available),
@@ -180,6 +185,10 @@ export async function mirrorOutstanding(
       movedAt: row.movedAt,
       rateSnapshot: row.rateSnapshot,
       replacementSnapshot: row.replacementSnapshot,
+      // The whole reason the floor is snapshotted onto the movement rather than
+      // read from the item master: the device carries it in the mirrored row
+      // and gets the same answer as the server without ever syncing settings.
+      minDaysSnapshot: row.minDaysSnapshot,
       manualCharge: row.manualCharge ?? undefined,
       reversesId: row.reversesId,
       createdAt: row.createdAt,
@@ -208,6 +217,8 @@ export async function mirrorOutstanding(
       if (lot.from < existing.since) {
         existing.since = lot.from;
         existing.daysHeld = lot.daysHeld;
+        existing.minimumDays = lot.minimumDays;
+        existing.billedDays = lot.billedDays;
       }
       continue;
     }
@@ -220,6 +231,8 @@ export async function mirrorOutstanding(
       qtyOut: lot.qty,
       since: lot.from,
       daysHeld: lot.daysHeld,
+      minimumDays: lot.minimumDays,
+      billedDays: lot.billedDays,
       accruingPerDay: lot.qty * lot.ratePerDay,
       accruedSoFar: lot.accruedAmount,
     });

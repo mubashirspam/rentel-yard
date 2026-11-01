@@ -7,7 +7,11 @@
 
 export * from './types';
 export * from './dates';
-export { DEFAULT_BILLING_CONFIG, assertBillingConfig } from './config';
+export {
+  DEFAULT_BILLING_CONFIG,
+  DEFAULT_ITEM_MINIMUM_DAYS,
+  assertBillingConfig,
+} from './config';
 export { roundLineTotal } from './rounding';
 export { accrue, dayCount, outstandingFor, isAccountEmpty } from './engine';
 export {

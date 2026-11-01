@@ -20,6 +20,11 @@ export interface StockRow {
   /** Paise per unit per day — the issue screen shows a running rent total. */
   ratePerDay: number;
   replacementRate: number;
+  /**
+   * Minimum hire days. Shown when staff pick the item, because "one day" and
+   * "five days" cost the same and the contractor is standing right there.
+   */
+  minimumDays: number;
   isActive: boolean;
   /** Availability is below zero — two devices oversold offline (§07.4). */
   isNegative: boolean;
@@ -50,6 +55,7 @@ export async function listStock(
       qtyAvailable: schema.vItemStock.qtyAvailable,
       ratePerDay: schema.items.ratePerDay,
       replacementRate: schema.items.replacementRate,
+      minimumDays: schema.items.minimumDays,
       isActive: schema.items.isActive,
     })
     .from(schema.vItemStock)

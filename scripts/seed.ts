@@ -13,7 +13,7 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { eq } from 'drizzle-orm';
 
 import { auth } from '../lib/auth/auth';
-import { DEFAULT_BILLING_CONFIG } from '../lib/accrual';
+import { DEFAULT_BILLING_CONFIG, DEFAULT_ITEM_MINIMUM_DAYS } from '../lib/accrual';
 import { rupeesToPaise } from '../lib/money';
 import * as schema from '../lib/db/schema';
 
@@ -138,6 +138,10 @@ async function main() {
         ratePerDay: rupeesToPaise(rate),
         replacementRate: rupeesToPaise(replacement),
         purchaseCost: rupeesToPaise(cost),
+        // Every item starts on the yard's five-day minimum hire period. It is
+        // per item, and the owner edits the ones that should bill by the day
+        // down to 1 on /items — the seed has no business guessing which.
+        minimumDays: DEFAULT_ITEM_MINIMUM_DAYS,
         qtyOwned,
         sortOrder: index,
       })

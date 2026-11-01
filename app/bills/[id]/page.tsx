@@ -152,6 +152,11 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
                       {formatDays(line.daysBilledEarlier)} billed earlier
                     </span>
                   )}
+                  {line.rawDays < line.minimumDays && (
+                    <span className="block text-xs text-amber">
+                      {line.minimumDays}-day minimum · held {formatDays(line.rawDays)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-2 py-2 text-right tabular">{line.qty}</td>
                 <td className="px-2 py-2 text-right tabular">{formatDay(line.from)}</td>

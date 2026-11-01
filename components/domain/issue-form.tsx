@@ -127,6 +127,15 @@ export function IssueForm({
 
   const perDay = chosen.reduce((sum, line) => sum + line.qty * line.item.ratePerDay, 0);
 
+  // What this load costs even if the lorry turns straight round: every line at
+  // its own minimum. It is the figure the contractor actually asks for, and it
+  // is not `perDay` times anything, because the minimums differ per item.
+  const atMinimum = chosen.reduce(
+    (sum, line) => sum + line.qty * line.item.minimumDays * line.item.ratePerDay,
+    0,
+  );
+  const hasMinimum = chosen.some((line) => line.item.minimumDays > 1);
+
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
     const active = items.filter((item) => item.isActive || (quantities[item.id] ?? 0) > 0);
@@ -310,6 +319,12 @@ export function IssueForm({
                     ) : (
                       <Chip tone="red">none available</Chip>
                     )}
+                    {/* The contractor is standing at the counter asking what a
+                        short hire costs, and for most items the answer is not
+                        the daily rate — it is this. */}
+                    {item.minimumDays > 1 && (
+                      <Chip tone="amber">min {item.minimumDays} days</Chip>
+                    )}
                     {item.code && <Chip>{item.code}</Chip>}
                     {qty > 0 && (
                       <Chip tone="steel">
@@ -392,6 +407,12 @@ export function IssueForm({
               {chosen.length} {chosen.length === 1 ? 'item' : 'items'} · going out{' '}
               {formatDayFull(movedAt)}
             </p>
+            {hasMinimum && (
+              <p className="mt-1 text-center text-xs text-ink-3">
+                Minimum hire on this load: <Money paise={atMinimum} /> — charged even if it comes
+                back tomorrow.
+              </p>
+            )}
           </>
         )}
       </div>

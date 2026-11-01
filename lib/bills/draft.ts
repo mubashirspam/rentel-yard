@@ -46,6 +46,16 @@ export interface BillLineDraft {
   days: number;
   /** Days of this lot's run already charged on an earlier bill. */
   daysBilledEarlier: number;
+  /** The item's minimum hire period, as frozen onto this lot at issue. */
+  minimumDays: number;
+  /**
+   * The days the calendar actually gave this lot, over its whole run.
+   *
+   * Printed beside `days` when the floor bit, because a contractor handed an
+   * invoice reading "1 span · 5 days" for a lorry that came back the next
+   * morning will ring about it, and the answer has to already be on the paper.
+   */
+  rawDays: number;
   ratePerDay: number;
   /** Paise, rounded once per `config.rounding`. */
   amount: number;
@@ -190,6 +200,8 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
         to: line.to,
         days,
         daysBilledEarlier,
+        minimumDays: line.minimumDays,
+        rawDays: line.rawDays,
         ratePerDay: line.ratePerDay,
         amount: roundLineTotal(line.qty * days * line.ratePerDay, config.rounding),
       });
