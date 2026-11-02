@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 
-import { InstallPrompt } from '@/components/ui/install-prompt';
-
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -21,7 +19,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
         {children}
-        <InstallPrompt />
       </body>
     </html>
   );

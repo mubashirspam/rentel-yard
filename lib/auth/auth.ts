@@ -34,7 +34,15 @@ function build() {
      * another domain cannot drive this API with a stolen cookie.
      */
     trustedOrigins: (request) => {
-      const configured = [env.BETTER_AUTH_URL, env.NEXT_PUBLIC_APP_URL];
+      const configured = [
+        env.BETTER_AUTH_URL,
+        env.NEXT_PUBLIC_APP_URL,
+        // The Flutter web app, hosted separately and forwarding /api here.
+        ...(env.APP_ORIGINS ?? '')
+          .split(',')
+          .map((o) => o.trim().replace(/\/$/, ''))
+          .filter(Boolean),
+      ];
       if (process.env.NODE_ENV !== 'development') return configured;
 
       const origin = request?.headers.get('origin');

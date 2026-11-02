@@ -16,6 +16,13 @@ const serverSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32, 'BETTER_AUTH_SECRET must be at least 32 characters.'),
   BETTER_AUTH_URL: z.url('BETTER_AUTH_URL must be an absolute URL.'),
   NEXT_PUBLIC_APP_URL: z.url('NEXT_PUBLIC_APP_URL must be an absolute URL.'),
+  /**
+   * Comma-separated origins of the Flutter web app, e.g.
+   * `https://app-bismirentel.vercel.app`. That site forwards `/api/*` here,
+   * so its pages call the API as their own origin and Better Auth must
+   * trust it. Optional.
+   */
+  APP_ORIGINS: z.string().optional(),
 
   /** Mixed into the portal token hash so a leaked database is not enough. */
   PORTAL_TOKEN_PEPPER: z.string().min(16, 'PORTAL_TOKEN_PEPPER must be at least 16 characters.'),
