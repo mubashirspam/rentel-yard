@@ -1,7 +1,9 @@
 import { fail } from '@/lib/api/respond';
 import { requireCapability, requireSession } from '@/lib/auth/guard';
 import { getBill } from '@/lib/bills/service';
+import { billPayInfo, qrPng } from '@/lib/bills/pay-info';
 import { renderBillPdf, type BillFormat } from '@/lib/bills/pdf';
+import { loadPaymentDetails } from '@/lib/settings/service';
 import { today } from '@/lib/clock';
 
 export const runtime = 'nodejs';
@@ -27,7 +29,9 @@ export async function GET(
       new URL(request.url).searchParams.get('format') === 'thermal' ? 'thermal' : 'a4';
 
     const bill = await getBill(session, id, today());
-    const pdf = await renderBillPdf(bill, format);
+    const info = billPayInfo(bill, await loadPaymentDetails(session.orgId));
+    const qr = info.upiUri ? await qrPng(info.upiUri) : null;
+    const pdf = await renderBillPdf(bill, format, { info, qr });
 
     return new Response(new Uint8Array(pdf), {
       headers: {

@@ -11,11 +11,12 @@ import { Card, Chip, PageHeader, Screen, SectionTitle } from '@/components/ui/la
 import { BigMoney, Money, Qty } from '@/components/ui/money';
 import { requireCapability } from '@/lib/auth/guard';
 import { orNotFound, requirePageSession } from '@/lib/auth/page';
+import { billPayInfo } from '@/lib/bills/pay-info';
 import { getBill } from '@/lib/bills/service';
 import { today } from '@/lib/clock';
 import { formatDay, formatDayFull, formatDays } from '@/lib/format';
 import { billMessage, reminderMessage, type MessageTemplate } from '@/lib/messages';
-import { messageLanguage } from '@/lib/settings/service';
+import { loadPaymentDetails, messageLanguage } from '@/lib/settings/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,6 +53,8 @@ export default async function BillPage({ params }: { params: Promise<{ id: strin
         grandTotal: bill.grandTotal,
         outstanding: bill.outstanding,
         dueOn: bill.dueOn,
+        lines: bill.frozen.lines,
+        payUrl: billPayInfo(bill, await loadPaymentDetails(session.orgId)).url,
       }),
     },
     {

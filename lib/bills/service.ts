@@ -115,7 +115,8 @@ export async function previewBill(
   if (!account) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That account was not found.');
 
   const lastPeriodTo = await lastBilledPeriodEnd(database, accountId);
-  const period = resolvePeriod(account, lastPeriodTo, requested, today);
+  const firstIssueOn = await firstIssuedOn(database, accountId);
+  const period = resolvePeriod(account, lastPeriodTo, firstIssueOn, requested, today);
 
   const draft = await buildDraft(database, session.orgId, account, period, requested.scope);
 
@@ -182,6 +183,27 @@ export async function issueBill(
         `This account is billed to ${lastPeriodTo}. Start the next period the day after, or raise a credit adjustment to correct the last bill.`,
         { field: 'periodFrom', context: { lastPeriodTo } },
       );
+    }
+    // D71: bills follow on from each other with no gap. Days skipped between
+    // two bills would never be charged — the next bill subtracts everything
+    // accrued before its own start.
+    if (lastPeriodTo && input.periodFrom !== addDays(lastPeriodTo, 1)) {
+      const next = addDays(lastPeriodTo, 1);
+      throw new LedgerError(
+        ERROR_CODES.CONFLICT,
+        `This account is billed to ${lastPeriodTo}. The next bill has to start on ${next}, so no days are left unbilled.`,
+        { field: 'periodFrom', context: { lastPeriodTo, expectedFrom: next } },
+      );
+    }
+    if (!lastPeriodTo) {
+      const first = await firstIssuedOn(tx, input.accountId);
+      if (first && input.periodFrom > first && input.periodFrom > account.openedOn) {
+        throw new LedgerError(
+          ERROR_CODES.CONFLICT,
+          `Equipment first went out on ${first}. The first bill has to start on or before that day, or that rent would never be billed.`,
+          { field: 'periodFrom', context: { firstIssueOn: first } },
+        );
+      }
     }
 
     const draft = await buildDraft(
@@ -296,24 +318,46 @@ export async function getBill(
   billId: string,
   asOf: string,
 ): Promise<BillDetail> {
+  return loadBillDetail(session.orgId, billId, asOf);
+}
+
+/**
+ * The same bill for the public pay page (D70). There is no session: the
+ * caller has already proved the bill id with a signed pay link, and the org is
+ * the bill's own.
+ */
+export async function getBillForPayLink(
+  billId: string,
+  asOf: string,
+): Promise<BillDetail & { orgId: string }> {
+  const [row] = await db()
+    .select({ orgId: schema.bills.orgId })
+    .from(schema.bills)
+    .where(eq(schema.bills.id, billId))
+    .limit(1);
+  if (!row) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That bill was not found.');
+  return { ...(await loadBillDetail(row.orgId, billId, asOf)), orgId: row.orgId };
+}
+
+async function loadBillDetail(orgId: string, billId: string, asOf: string): Promise<BillDetail> {
   const database = db();
 
   const [row] = await database
     .select()
     .from(schema.bills)
-    .where(and(eq(schema.bills.id, billId), eq(schema.bills.orgId, session.orgId)))
+    .where(and(eq(schema.bills.id, billId), eq(schema.bills.orgId, orgId)))
     .limit(1);
 
   if (!row) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That bill was not found.');
 
-  const account = await findAccount(database, session.orgId, row.accountId);
+  const account = await findAccount(database, orgId, row.accountId);
   if (!account) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That bill was not found.');
 
   const [customer, allocated, org, settings, allocations] = await Promise.all([
     loadCustomer(database, account.customerId),
     allocatedByBill(database, [row.id]),
-    loadOrg(database, session.orgId),
-    loadSettings(database, session.orgId),
+    loadOrg(database, orgId),
+    loadSettings(database, orgId),
     database
       .select({
         id: schema.payments.id,
@@ -601,6 +645,16 @@ async function accruedAtLastBill(
   return (row?.lines as FrozenBill | undefined)?.accruedToDate ?? 0;
 }
 
+/** The account's earliest issue date, or null when nothing has gone out. */
+async function firstIssuedOn(tx: Database, accountId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ first: sql<string | null>`min(${schema.movements.movedAt})` })
+    .from(schema.movements)
+    .where(and(eq(schema.movements.accountId, accountId), eq(schema.movements.type, 'ISSUE')));
+
+  return row?.first ?? null;
+}
+
 /** The end of the latest period already billed, or null when none is. */
 async function lastBilledPeriodEnd(tx: Database, accountId: string): Promise<string | null> {
   const [row] = await tx
@@ -616,6 +670,7 @@ async function lastBilledPeriodEnd(tx: Database, accountId: string): Promise<str
 function resolvePeriod(
   account: AccountRow,
   lastPeriodTo: string | null,
+  firstIssueOn: string | null,
   requested: { periodFrom?: string; periodTo?: string },
   today: string,
 ): { periodFrom: string; periodTo: string } {
@@ -623,6 +678,7 @@ function resolvePeriod(
     openedOn: account.openedOn,
     lastPeriodTo,
     today,
+    firstIssueOn,
   });
 
   return {

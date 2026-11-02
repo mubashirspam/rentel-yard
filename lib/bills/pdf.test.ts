@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { billPayInfo, qrPng } from './pay-info';
 import { renderBillPdf } from './pdf';
 import type { BillDetail } from './service';
 
@@ -119,4 +120,33 @@ describe('bill PDF', () => {
 
     expect(first.equals(second)).toBe(true);
   }, 30_000);
+
+  it('carries the pay block with a UPI QR when details are set (D70)', async () => {
+    const info = billPayInfo(
+      { ...BILL, id: '6f1c2a8e-3b4d-4e5f-8a9b-0c1d2e3f4a5b' },
+      {
+        payeeName: 'Bismi Scaffolding',
+        upiId: 'bismi@okaxis',
+        bankName: 'SBI',
+        bankAccountName: 'Bismi Scaffolding',
+        bankAccountNumber: '123456789012',
+        bankIfsc: 'SBIN0001234',
+      },
+      { appUrl: 'https://bismirentel.vercel.app', pepper: 'a-test-pepper-that-is-long-enough' },
+    );
+    expect(info.amount).toBe(410_000);
+    expect(info.upiUri).toBe(
+      'upi://pay?pa=bismi%40okaxis&pn=Bismi%20Scaffolding&am=4100.00&cu=INR&tn=INV-2026-0042',
+    );
+
+    const qr = await qrPng(info.upiUri!);
+    expect(qr.startsWith('data:image/png;base64,')).toBe(true);
+
+    for (const format of ['a4', 'thermal'] as const) {
+      const pdf = await renderBillPdf(BILL, format, { info, qr });
+      expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+      // The QR image makes the file bigger than the same bill without it.
+      expect(pdf.length).toBeGreaterThan((await renderBillPdf(BILL, format)).length);
+    }
+  });
 });

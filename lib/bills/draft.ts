@@ -247,14 +247,20 @@ export function buildBillDraft(input: BuildBillDraftInput): BillDraft {
 
 /**
  * The period a bill should default to (§09): the day after the last bill's
- * `period_to`, through today. A first bill starts the day the account opened.
+ * `period_to`, through today. A first bill starts the day equipment first
+ * went out (D71) — the account may have been opened long before — or the day
+ * the account opened when nothing has gone out yet.
  */
 export function defaultBillPeriod(input: {
   openedOn: IsoDate;
   lastPeriodTo: IsoDate | null;
   today: IsoDate;
+  /** The account's earliest issue date, when it has one. */
+  firstIssueOn?: IsoDate | null;
 }): { periodFrom: IsoDate; periodTo: IsoDate } {
-  const periodFrom = input.lastPeriodTo ? addDays(input.lastPeriodTo, 1) : input.openedOn;
+  const firstDay =
+    input.firstIssueOn && input.firstIssueOn > input.openedOn ? input.firstIssueOn : input.openedOn;
+  const periodFrom = input.lastPeriodTo ? addDays(input.lastPeriodTo, 1) : firstDay;
 
   return {
     periodFrom,

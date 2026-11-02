@@ -1013,3 +1013,54 @@ see D57 above.
   tests for both M3 and M4, which exercise the real services against the real
   migrations — but there is no `.env.local` here, so nobody has yet loaded
   `/accounts/[id]` or a bill PDF in a browser against Neon. Do that before M5.
+
+---
+
+## Payments by UPI link
+
+### D70. A pay link and a QR on every bill — still nothing collected
+
+Owner's request: the WhatsApp bill and the PDF should let the customer pay in
+one tap, with the amount filled in, in Google Pay / PhonePe / any UPI app, and
+with a QR — without a payment gateway.
+
+- **Where to pay** lives in `settings`: `payee_name`, `upi_id`, `bank_name`,
+  `bank_account_name`, `bank_account_number`, `bank_ifsc` (migration
+  `0006_payment_details`). All optional; owner-only to change
+  (`settings.manage`), readable by staff because they send the bills.
+- **The UPI link** is the standard `upi://pay?pa=…&pn=…&am=…&cu=INR&tn=<invoice>`
+  for the bill's *current* outstanding (server figure, paise → "795.00" without
+  floats). It opens the customer's own app; money goes straight to the yard.
+- **WhatsApp only makes `https` links tappable**, so the message carries
+  `/pay/<token>` and that page carries the UPI button, a QR of the same link,
+  and the bank details with copy buttons. Real buttons inside a WhatsApp
+  message need the paid Business API — out of scope.
+- **The token** is the bill's UUID (base64url) plus an HMAC of it under
+  `PORTAL_TOKEN_PEPPER`: unguessable, not editable to reach another bill, no
+  table, no expiry (a printed bill has none either). It reveals only what the
+  PDF already does. Kept separate from portal tokens on purpose — those expose
+  a customer's whole account and are revocable; this exposes one bill.
+- **The PDF** gets a "Pay ₹X" block (QR, UPI ID, bank, link) while money is
+  owed and details are set. The thermal slip gets a smaller one.
+- **Nothing is confirmed automatically.** No gateway means no callback: staff
+  still record the payment, as `payments/service.ts` has always said. Some UPI
+  apps warn or limit link payments to *personal* UPI IDs; a merchant/business
+  UPI ID is the reliable choice.
+
+### D71. Bills follow on from each other; the first starts at the first issue
+
+Owner report: billing felt confusing and looked like it could double-bill.
+The arithmetic never did (each bill is "accrued to its end" minus "accrued
+before its start", and `openDaysBilledByLot` carries what was already charged
+on lots still out, so a minimum-days floor is charged once). The confusion
+was in the dates:
+
+- **Gaps.** A bill starting after the day following the last one silently
+  dropped the days in between — the next bill subtracts everything accrued
+  before its own start. `issueBill` now requires `periodFrom` = last
+  `periodTo` + 1. (Overlap was already refused.)
+- **First bill.** The default started on `accounts.opened_on`, which can be
+  months before anything went out. It now starts on the account's first
+  ISSUE date (or `opened_on` when nothing has gone out), and a first bill
+  may not start after the first issue, or that rent would never be billed.
+- The apps fix "From" to the server's default and let staff choose only "To".

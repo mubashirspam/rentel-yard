@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 /**
@@ -19,8 +20,11 @@ const DISMISSED_KEY = 'yard-install-dismissed';
 export function InstallPrompt() {
   const [event, setEvent] = useState<InstallEvent | null>(null);
   const [visible, setVisible] = useState(false);
+  // Customers opening a bill's pay link are not staff: never offer the app.
+  const isPublic = usePathname()?.startsWith('/pay/') ?? false;
 
   useEffect(() => {
+    if (isPublic) return;
     if (localStorage.getItem(DISMISSED_KEY)) return;
     // Already running from the home screen: nothing to offer.
     if (window.matchMedia('(display-mode: standalone)').matches) return;
@@ -33,7 +37,7 @@ export function InstallPrompt() {
 
     window.addEventListener('beforeinstallprompt', onPrompt);
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
-  }, []);
+  }, [isPublic]);
 
   function dismiss() {
     localStorage.setItem(DISMISSED_KEY, '1');

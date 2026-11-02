@@ -86,18 +86,32 @@ export interface BillMessageInput {
   outstanding: number;
   dueOn: string | null;
   language?: MessageLanguage;
+  /** Item lines, shown as a short list (D70). Omitted: totals only. */
+  lines?: Array<{ itemName: string; qty: number; days: number; amount: number }>;
+  /** The public pay page (D70). Shown only while money is owed. */
+  payUrl?: string | null;
+}
+
+function billLines(input: BillMessageInput, dayWord: (n: number) => string): string | null {
+  if (!input.lines || input.lines.length === 0) return null;
+  return input.lines
+    .map((l) => `• ${l.itemName} × ${l.qty} · ${l.days} ${dayWord(l.days)} — ${formatPaise(l.amount)}`)
+    .join('\n');
 }
 
 export function billMessage(input: BillMessageInput): string {
+  const pay = input.payUrl && input.outstanding > 0 ? input.payUrl : null;
   if (input.language === 'ml') {
     return [
       `${input.yardName} — ബിൽ ${input.invoiceNo}`,
       `${input.siteName} · ${formatDay(input.periodFrom)} മുതൽ ${formatDayFull(input.periodTo)} വരെ`,
+      billLines(input, () => 'ദിവസം'),
       `ആകെ തുക: ${formatPaise(input.grandTotal)}`,
       input.outstanding !== input.grandTotal
         ? `ഈ ബില്ലിൽ ബാക്കി: ${formatPaise(input.outstanding)}`
         : null,
       input.dueOn ? `അടയ്ക്കേണ്ട അവസാന തീയതി: ${formatDayFull(input.dueOn)}` : null,
+      pay ? `💳 ${formatPaise(input.outstanding)} അടയ്ക്കാൻ (UPI / QR / ബാങ്ക്): ${pay}` : null,
     ]
       .filter(Boolean)
       .join('\n');
@@ -106,11 +120,13 @@ export function billMessage(input: BillMessageInput): string {
   return [
     `${input.yardName} — invoice ${input.invoiceNo}`,
     `${input.siteName} · ${formatDay(input.periodFrom)} to ${formatDayFull(input.periodTo)}`,
+    billLines(input, (n) => (n === 1 ? 'day' : 'days')),
     `Total: ${formatPaise(input.grandTotal)}`,
     input.outstanding !== input.grandTotal
       ? `Balance on this invoice: ${formatPaise(input.outstanding)}`
       : null,
     input.dueOn ? `Due by ${formatDayFull(input.dueOn)}` : null,
+    pay ? `💳 Pay ${formatPaise(input.outstanding)} (UPI / QR / bank): ${pay}` : null,
   ]
     .filter(Boolean)
     .join('\n');

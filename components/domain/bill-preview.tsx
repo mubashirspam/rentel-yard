@@ -33,7 +33,8 @@ export function BillPreviewScreen({
   const router = useRouter();
   const [preview, setPreview] = useState(initial);
   const [scope, setScope] = useState<'all' | 'returned'>('returned');
-  const [periodFrom, setPeriodFrom] = useState(initial.periodFrom);
+  // Fixed (D71): the day after the last bill, or the first issue.
+  const periodFrom = initial.periodFrom;
   const [periodTo, setPeriodTo] = useState(initial.periodTo);
   const [dueOn, setDueOn] = useState('');
   const [error, setError] = useState<string>();
@@ -130,19 +131,22 @@ export function BillPreviewScreen({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
+        {/* D71: "from" is fixed — the day after the last bill, or the first
+            issue — so a bill can neither overlap nor skip days. */}
         <TextInput
           id="period-from"
-          label="Period from"
+          label={preview.lastPeriodTo ? 'Period from · day after last bill' : 'Period from · first issue'}
           type="date"
           value={periodFrom}
-          max={periodTo}
-          onChange={(event) => setPeriodFrom(event.target.value)}
+          readOnly
+          aria-readonly
         />
         <TextInput
           id="period-to"
           label="Period to"
           type="date"
           value={periodTo}
+          min={periodFrom}
           max={today}
           onChange={(event) => setPeriodTo(event.target.value)}
         />

@@ -11,6 +11,7 @@
 
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -20,6 +21,7 @@ import {
 
 import { formatDay, formatDayFull } from '../format';
 import { formatPaise } from '../money';
+import type { BillPayInfo } from './pay-info';
 import type { BillDetail } from './service';
 
 export type BillFormat = 'a4' | 'thermal';
@@ -62,6 +64,21 @@ const styles = StyleSheet.create({
   rule: { borderTopWidth: 1, borderTopColor: '#15181c', marginTop: 4, paddingTop: 4 },
   terms: { marginTop: 18, fontSize: 7, color: '#4a545e' },
   minimumNote: { fontSize: 6.5, color: '#4a545e' },
+
+  // "Pay this bill" (D70)
+  pay: {
+    marginTop: 16,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#d8dcec',
+    borderRadius: 6,
+    backgroundColor: '#f6f7ff',
+    flexDirection: 'row',
+  },
+  payThermal: { marginTop: 10, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#15181c' },
+  payTitle: { fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 4 },
+  payLine: { marginBottom: 2 },
+  payLink: { marginTop: 4, color: '#3f51c2' },
 });
 
 /**
@@ -80,7 +97,16 @@ function atMinimumHire(line: BillDetail['frozen']['lines'][number]): boolean {
   return line.rawDays < line.minimumDays;
 }
 
-export function BillDocument({ bill, format }: { bill: BillDetail; format: BillFormat }) {
+export function BillDocument({
+  bill,
+  format,
+  pay,
+}: {
+  bill: BillDetail;
+  format: BillFormat;
+  /** Where to pay, with the QR as a PNG data URL (D70). Omitted: no block. */
+  pay?: { info: BillPayInfo; qr: string | null };
+}) {
   const thermal = format === 'thermal';
 
   return (
@@ -100,6 +126,9 @@ export function BillDocument({ bill, format }: { bill: BillDetail; format: BillF
         <Header bill={bill} thermal={thermal} />
         <RentTable bill={bill} thermal={thermal} />
         <Totals bill={bill} />
+        {pay && pay.info.amount > 0 && pay.info.hasDetails && (
+          <PayBlock info={pay.info} qr={pay.qr} thermal={thermal} />
+        )}
         {bill.org.termsText && !thermal && <Text style={styles.terms}>{bill.org.termsText}</Text>}
       </Page>
     </Document>
@@ -278,6 +307,60 @@ function TotalLine({ label, value }: { label: string; value: number }) {
   );
 }
 
-export async function renderBillPdf(bill: BillDetail, format: BillFormat): Promise<Buffer> {
-  return renderToBuffer(<BillDocument bill={bill} format={format} />);
+/** QR + UPI ID + bank details + pay link. Nothing here collects money. */
+function PayBlock({
+  info,
+  qr,
+  thermal,
+}: {
+  info: BillPayInfo;
+  qr: string | null;
+  thermal: boolean;
+}) {
+  const d = info.details;
+  const lines = [
+    d.upiId ? `UPI: ${d.upiId}` : null,
+    d.bankAccountNumber ? `A/c: ${d.bankAccountNumber}` : null,
+    d.bankIfsc ? `IFSC: ${d.bankIfsc}` : null,
+    d.bankAccountName ? `Name: ${d.bankAccountName}` : null,
+    d.bankName ? `Bank: ${d.bankName}` : null,
+  ].filter((line): line is string => line !== null);
+
+  const text = (
+    <View style={{ flex: 1 }}>
+      <Text style={styles.payTitle}>Pay {formatPaise(info.amount)}</Text>
+      {qr && <Text style={styles.payLine}>Scan the QR with any UPI app.</Text>}
+      {lines.map((line) => (
+        <Text key={line} style={styles.payLine}>
+          {line}
+        </Text>
+      ))}
+      <Text style={styles.payLink}>{info.url}</Text>
+    </View>
+  );
+
+  if (thermal) {
+    return (
+      <View style={styles.payThermal}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image has no alt */}
+        {qr && <Image src={qr} style={{ width: 110, height: 110, alignSelf: 'center' }} />}
+        {text}
+      </View>
+    );
+  }
+  return (
+    <View style={styles.pay} wrap={false}>
+      {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf's Image has no alt */}
+      {qr && <Image src={qr} style={{ width: 96, height: 96, marginRight: 12 }} />}
+      {text}
+    </View>
+  );
+}
+
+export async function renderBillPdf(
+  bill: BillDetail,
+  format: BillFormat,
+  pay?: { info: BillPayInfo; qr: string | null },
+): Promise<Buffer> {
+  return renderToBuffer(<BillDocument bill={bill} format={format} pay={pay} />);
 }

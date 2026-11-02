@@ -1,6 +1,8 @@
 import { handler, ok } from '@/lib/api/respond';
 import { requireCapability, requireSession } from '@/lib/auth/guard';
+import { billPayInfo } from '@/lib/bills/pay-info';
 import { getBill } from '@/lib/bills/service';
+import { loadPaymentDetails } from '@/lib/settings/service';
 import { today } from '@/lib/clock';
 
 export const runtime = 'nodejs';
@@ -13,6 +15,10 @@ export const GET = handler(
 
     const { id } = await context.params;
 
-    return ok({ bill: await getBill(session, id, today()) });
+    const bill = await getBill(session, id, today());
+    // D70: the public pay page and UPI link for the WhatsApp message.
+    const pay = billPayInfo(bill, await loadPaymentDetails(session.orgId));
+
+    return ok({ bill, pay });
   },
 );

@@ -86,6 +86,18 @@ export const settings = pgTable('settings', {
   showRatesToCustomer: boolean('show_rates_to_customer').notNull().default(false),
   /** §11: how long an admin-shared portal link stays valid. */
   portalTokenDays: integer('portal_token_days').notNull().default(90),
+  /**
+   * Where customers pay (D70). Shown on the bill PDF, the WhatsApp bill and
+   * the public pay page — a UPI button, a QR code, and bank details. Nothing
+   * is collected through the app: money goes straight to these accounts and
+   * staff still record the payment. All optional; empty hides the block.
+   */
+  payeeName: text('payee_name'),
+  upiId: text('upi_id'),
+  bankName: text('bank_name'),
+  bankAccountName: text('bank_account_name'),
+  bankAccountNumber: text('bank_account_number'),
+  bankIfsc: text('bank_ifsc'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

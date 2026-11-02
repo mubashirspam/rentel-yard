@@ -43,6 +43,13 @@
       "when": 1786691235431,
       "tag": "0005_ordinary_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793620139944,
+      "tag": "0006_payment_details",
+      "breakpoints": true
     }
   ]
 }

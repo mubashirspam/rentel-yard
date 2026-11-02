@@ -396,6 +396,22 @@ describe('M4 — the second period', () => {
   });
 });
 
+describe('M4 — bills follow on with no gap (D71)', () => {
+  it('refuses a bill that would skip days after the last one', async () => {
+    // Billed to 10-Aug; starting on the 15th would leave 11–14 Aug unbilled.
+    const failure = await issueBill(
+      session,
+      { accountId, periodFrom: '2026-08-15', periodTo: '2026-08-20' },
+      '2026-08-20',
+    ).catch((error: unknown) => error);
+
+    expect(isLedgerError(failure)).toBe(true);
+    if (!isLedgerError(failure)) return;
+    expect(failure.code).toBe(ERROR_CODES.CONFLICT);
+    expect(failure.message).toContain('2026-08-11');
+  });
+});
+
 describe('M4 — a gate pass written up after its period was billed', () => {
   it('surfaces the rent no bill has ever charged', async () => {
     // July was billed on the 31st. This lot went out on the 15th and came back

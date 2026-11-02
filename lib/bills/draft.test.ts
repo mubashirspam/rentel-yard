@@ -266,6 +266,28 @@ describe('damages and adjustments', () => {
 });
 
 describe('default period', () => {
+  it('starts a first bill on the first issue, not an old account opening (D71)', () => {
+    expect(
+      defaultBillPeriod({
+        openedOn: '2026-01-10',
+        lastPeriodTo: null,
+        today: '2026-11-02',
+        firstIssueOn: '2026-10-28',
+      }),
+    ).toEqual({ periodFrom: '2026-10-28', periodTo: '2026-11-02' });
+  });
+
+  it('ignores the first issue once a bill exists (D71)', () => {
+    expect(
+      defaultBillPeriod({
+        openedOn: '2026-01-10',
+        lastPeriodTo: '2026-10-31',
+        today: '2026-11-02',
+        firstIssueOn: '2026-10-28',
+      }),
+    ).toEqual({ periodFrom: '2026-11-01', periodTo: '2026-11-02' });
+  });
+
   it('starts at the account opening for a first bill', () => {
     expect(
       defaultBillPeriod({ openedOn: '2026-06-01', lastPeriodTo: null, today: '2026-06-30' }),
