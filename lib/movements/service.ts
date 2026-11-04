@@ -96,6 +96,7 @@ export async function recordMovementBatch(
         minDaysSnapshot: item.minimumDays,
         manualCharge: line.manualCharge ?? null,
         movedAt: input.movedAt,
+        billFrom: input.type === 'ISSUE' ? (input.billFrom ?? null) : null,
         gatePassNo: input.gatePassNo ?? null,
         photoUrl: input.photoUrl ?? null,
         signatureUrl: input.signatureUrl ?? null,
@@ -164,6 +165,7 @@ export async function reverseMovement(
         rateSnapshot: schema.movements.rateSnapshot,
         replacementSnapshot: schema.movements.replacementSnapshot,
         minDaysSnapshot: schema.movements.minDaysSnapshot,
+        billFrom: schema.movements.billFrom,
       })
       .from(schema.movements)
       .where(
@@ -273,6 +275,7 @@ async function assertBatchReplays(
     rateSnapshot: row.rateSnapshot,
     replacementSnapshot: row.replacementSnapshot ?? 0,
     minDaysSnapshot: row.minDaysSnapshot ?? null,
+    billFrom: row.billFrom ?? null,
     manualCharge: row.manualCharge ?? undefined,
     createdAt: now,
   }));

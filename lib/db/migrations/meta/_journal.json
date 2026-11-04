@@ -50,6 +50,20 @@
       "when": 1793620139944,
       "tag": "0006_payment_details",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793776690432,
+      "tag": "0007_bill_both_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793780789373,
+      "tag": "0008_issue_bill_from",
+      "breakpoints": true
     }
   ]
 }

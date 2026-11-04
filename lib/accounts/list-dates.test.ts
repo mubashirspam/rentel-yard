@@ -112,9 +112,10 @@ describe('a list row dates the lending, not the khata', () => {
   it('counts days from the lending, so the rent on the same row adds up', async () => {
     const [row] = await listAccounts(session, { status: 'open' }, TODAY);
 
-    // 03-Aug → 04-Aug is one day held. The sheet carries the yard's default
-    // five-day minimum, so one unit is billed five days at ₹39 — ₹195.
-    expect(row.daysOut).toBe(1);
+    // 03-Aug → 04-Aug is two days held (issue day and today both count). The
+    // sheet carries the yard's default five-day minimum, so one unit is billed
+    // five days at ₹39 — ₹195.
+    expect(row.daysOut).toBe(2);
     expect(row.billedDays).toBe(MINIMUM_DAYS);
     expect(row.perDay).toBe(RATE);
     expect(row.accruedRent).toBe(RATE * MINIMUM_DAYS);

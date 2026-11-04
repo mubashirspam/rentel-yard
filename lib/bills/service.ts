@@ -10,6 +10,8 @@
  * Corrections are a credit adjustment and a new bill, never an edit.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 
 import {
@@ -107,7 +109,7 @@ export interface FrozenBill {
 export async function previewBill(
   session: StaffSession,
   accountId: string,
-  requested: { periodFrom?: string; periodTo?: string; scope?: BillScope },
+  requested: { periodFrom?: string; periodTo?: string; scope?: BillScope; discount?: number },
   today: string,
 ): Promise<BillPreview> {
   const database = db();
@@ -118,7 +120,12 @@ export async function previewBill(
   const firstIssueOn = await firstIssuedOn(database, accountId);
   const period = resolvePeriod(account, lastPeriodTo, firstIssueOn, requested, today);
 
-  const draft = await buildDraft(database, session.orgId, account, period, requested.scope);
+  const draft = withDiscount(
+    await buildDraft(database, session.orgId, account, period, requested.scope),
+    requested.discount ?? 0,
+    DISCOUNT_REASON,
+    period.periodTo,
+  );
 
   const [customer, payments, adjustments, movements, config, accruedWhenLastBilled] =
     await Promise.all([
@@ -145,7 +152,8 @@ export async function previewBill(
     siteName: account.siteName,
     customerName: customer.name,
     customerMobile: customer.mobile,
-    accountBalance: accrual.rentTotal + accrual.damageTotal + charges - paid - credits,
+    accountBalance:
+      accrual.rentTotal + accrual.damageTotal + charges - paid - credits - (requested.discount ?? 0),
     lastPeriodTo,
     earlierPeriodGap: draft.billedEarlier - accruedWhenLastBilled,
   };
@@ -206,7 +214,7 @@ export async function issueBill(
       }
     }
 
-    const draft = await buildDraft(
+    const undiscounted = await buildDraft(
       tx,
       session.orgId,
       account,
@@ -214,12 +222,43 @@ export async function issueBill(
       input.scope,
     );
 
-    if (draft.grandTotal === 0 && draft.lines.length === 0 && draft.damageLines.length === 0) {
+    if (
+      undiscounted.grandTotal === 0 &&
+      undiscounted.lines.length === 0 &&
+      undiscounted.damageLines.length === 0
+    ) {
       throw new LedgerError(
         ERROR_CODES.CONFLICT,
         'There is nothing to bill in that period — no rent accrued, no damages, no charges.',
         { field: 'periodFrom' },
       );
+    }
+
+    // The discount is a credit dated on the bill's last day, so it lands on
+    // this bill and never on the next one, and the balance drops with it.
+    const discount = input.discount ?? 0;
+    const discountReason = input.discountReason?.trim() || DISCOUNT_REASON;
+    let draft = withDiscount(undiscounted, discount, discountReason, input.periodTo);
+    if (discount > 0) {
+      const [credit] = await tx
+        .insert(schema.adjustments)
+        .values({
+          orgId: session.orgId,
+          accountId: input.accountId,
+          kind: 'credit',
+          amount: discount,
+          reason: discountReason,
+          appliedOn: input.periodTo,
+          clientUuid: `bill-discount-${randomUUID()}`,
+          createdBy: session.userId,
+        })
+        .returning({ id: schema.adjustments.id });
+      draft = {
+        ...draft,
+        adjustments: draft.adjustments.map((a) =>
+          a.id === PENDING_DISCOUNT_ID ? { ...a, id: credit.id } : a,
+        ),
+      };
     }
 
     const { invoiceNo, paymentTermsDays } = await allocateInvoiceNumber(
@@ -684,6 +723,39 @@ function resolvePeriod(
   return {
     periodFrom: requested.periodFrom ?? fallback.periodFrom,
     periodTo: requested.periodTo ?? fallback.periodTo,
+  };
+}
+
+const DISCOUNT_REASON = 'Discount';
+/** Stand-in id for a discount shown on a preview, before it is saved. */
+const PENDING_DISCOUNT_ID = 'pending-discount';
+
+/**
+ * Take a discount off a draft's total. Refuses a discount bigger than the bill,
+ * because a bill below zero would read as the yard owing the contractor.
+ */
+function withDiscount(
+  draft: BillDraft,
+  discount: number,
+  reason: string,
+  appliedOn: string,
+): BillDraft {
+  if (discount <= 0) return draft;
+  if (discount > draft.grandTotal) {
+    throw new LedgerError(
+      ERROR_CODES.CONFLICT,
+      'The discount is more than the bill total.',
+      { field: 'discount', context: { billTotal: draft.grandTotal } },
+    );
+  }
+  return {
+    ...draft,
+    adjustments: [
+      ...draft.adjustments,
+      { id: PENDING_DISCOUNT_ID, kind: 'credit', amount: discount, reason, appliedOn },
+    ],
+    creditsTotal: draft.creditsTotal + discount,
+    grandTotal: draft.grandTotal - discount,
   };
 }
 

@@ -130,18 +130,18 @@ describe('the item master seeds the floor', () => {
   it('bills the floor a day later, not the day held', async () => {
     const detail = await getAccountDetail(session, accountId, NEXT_DAY);
 
-    // Held one day, charged five: 1 × 5 × ₹5 = ₹25.
+    // Held two days (issue day and today), charged five: 1 × 5 × ₹5 = ₹25.
     expect(detail.accrual.rentTotal).toBe(MINIMUM_DAYS * RATE);
 
     const [line] = detail.outstanding;
-    expect(line.daysHeld).toBe(1);
+    expect(line.daysHeld).toBe(2);
     expect(line.minimumDays).toBe(MINIMUM_DAYS);
     expect(line.billedDays).toBe(MINIMUM_DAYS);
   });
 });
 
 describe('two items on one account keep their own floors', () => {
-  it('charges the span five days and the sheet one, on the same day', async () => {
+  it('charges the span five days and the sheet two, on the next day', async () => {
     await lend(sheetId, 1, ISSUED_ON);
 
     const detail = await getAccountDetail(session, accountId, NEXT_DAY);
@@ -149,9 +149,9 @@ describe('two items on one account keep their own floors', () => {
     const sheet = detail.outstanding.find((line) => line.itemId === sheetId)!;
 
     expect(span.billedDays).toBe(MINIMUM_DAYS);
-    expect(sheet.billedDays).toBe(1);
-    // ₹25 for the span, ₹5 for the sheet.
-    expect(detail.accrual.rentTotal).toBe(MINIMUM_DAYS * RATE + RATE);
+    expect(sheet.billedDays).toBe(2);
+    // ₹25 for the span, ₹10 for the sheet (issue day and today).
+    expect(detail.accrual.rentTotal).toBe(MINIMUM_DAYS * RATE + 2 * RATE);
   });
 });
 

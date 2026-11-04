@@ -37,7 +37,7 @@ import type { BillingConfig } from './types';
 export const DEFAULT_ITEM_MINIMUM_DAYS = 5;
 
 export const DEFAULT_BILLING_CONFIG: BillingConfig = {
-  day_count_mode: 'inclusive_start',
+  day_count_mode: 'inclusive_both',
   /** Fallback for pre-snapshot lots only. See the note above. */
   minimum_days: 0,
   minimum_days_applies: 'per_issue_lot',

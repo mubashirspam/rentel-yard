@@ -29,7 +29,7 @@ import type { BillingConfig, Movement } from './types';
  * comes from the item's own snapshot — if the engine ever fell back to the
  * config, these tests would all collapse to "days actually held".
  */
-const CONFIG: BillingConfig = { ...DEFAULT_BILLING_CONFIG, minimum_days: 0 };
+const CONFIG: BillingConfig = { ...DEFAULT_BILLING_CONFIG, minimum_days: 0, day_count_mode: 'inclusive_start' };
 
 const SPAN = 'item-span';
 const SHEET = 'item-sheet';

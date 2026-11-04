@@ -1,0 +1,1 @@
+ALTER TABLE "movements" ADD COLUMN "bill_from" date;

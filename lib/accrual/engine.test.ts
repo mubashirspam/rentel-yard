@@ -17,7 +17,7 @@ import type { BillingConfig, Movement } from './types';
 // §03.5's vectors are specified against a 15-day minimum, so they state it
 // explicitly. The shipped default is 0 — the yard charges days actually held —
 // but the floor still has to work for any yard that wants one.
-const CONFIG: BillingConfig = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15 };
+const CONFIG: BillingConfig = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15, day_count_mode: 'inclusive_start' };
 
 const JACK = 'item-jack';
 const SHEET = 'item-sheet';
@@ -282,6 +282,13 @@ describe('day counting', () => {
     const config: BillingConfig = { ...CONFIG, minimum_days: 0, day_count_mode: 'inclusive_both' };
     const result = accrue([issue(1, '2026-01-01'), takeBack(1, '2026-01-02')], config, '2026-01-31');
     expect(result.lines[0].days).toBe(2);
+  });
+
+  it('bills the shipped default like the "Day N" label: issued 3 Nov, still out 4 Nov = 2 days', () => {
+    const items = issue(2, '2026-11-03', { rateSnapshot: rupees(100), minDaysSnapshot: 1 });
+    const result = accrue([items], DEFAULT_BILLING_CONFIG, '2026-11-04');
+    expect(result.lines[0].days).toBe(2);
+    expect(result.rentTotal).toBe(rupees(400));
   });
 });
 

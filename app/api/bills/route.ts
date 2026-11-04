@@ -18,13 +18,19 @@ export const GET = handler(async (request: Request) => {
     periodFrom: url.searchParams.get('periodFrom') ?? undefined,
     periodTo: url.searchParams.get('periodTo') ?? undefined,
     scope: url.searchParams.get('scope') ?? undefined,
+    discount: url.searchParams.get('discount') ?? undefined,
   });
 
   return ok({
     preview: await previewBill(
       session,
       input.accountId,
-      { periodFrom: input.periodFrom, periodTo: input.periodTo, scope: input.scope },
+      {
+        periodFrom: input.periodFrom,
+        periodTo: input.periodTo,
+        scope: input.scope,
+        discount: input.discount,
+      },
       today(),
     ),
   });

@@ -84,7 +84,9 @@ export function accrue(
         lots.push({
           id: movement.id,
           itemId,
-          from: movement.movedAt,
+          // Rent runs from the billing start the yard chose, which may be the
+          // day after the equipment left.
+          from: movement.billFrom ?? movement.movedAt,
           rate: movement.rateSnapshot,
           // The item's own floor, frozen at issue. Lots issued before per-item
           // minimums existed carry nothing and fall back to the org's rule,
@@ -282,7 +284,30 @@ function billSlice(
   asOf?: IsoDate,
 ): RentLine {
   const through = closedOn ?? (asOf as IsoDate);
-  const rawDays = dayCount(lot.from, through, config);
+  const started = compareIsoDates(through, lot.from) >= 0;
+
+  // Still out and billing has not started yet (issued in the evening, billed
+  // from tomorrow): nothing is owed so far, not even the minimum.
+  if (!started && closedOn === null) {
+    return {
+      itemId: lot.itemId,
+      lotId: lot.id,
+      qty,
+      from: lot.from,
+      to: null,
+      through,
+      days: 0,
+      rawDays: 0,
+      minimumDays: lot.minDays,
+      minimumApplied: false,
+      ratePerDay: lot.rate,
+      amount: 0,
+    };
+  }
+
+  // Came back before billing started: it still went out, so it is one day and
+  // the item's minimum, the same as a same-day return.
+  const rawDays = started ? dayCount(lot.from, through, config) : 1;
   // The minimum is evaluated per slice of an issue lot, so a lot returned in
   // three parts can have the floor bite on the earliest part only.
   const days = Math.max(rawDays, lot.minDays);

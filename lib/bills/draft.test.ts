@@ -20,7 +20,7 @@ const RATE_SPAN = 400; // ₹4.00 per day
 const ITEM_NAMES = { [JACK]: 'Jack 3.0m', [SPAN]: 'Span 12ft' };
 
 /** No minimum-days floor, so the day arithmetic is visible on its own. */
-const CONFIG = { ...DEFAULT_BILLING_CONFIG, minimum_days: 0 };
+const CONFIG = { ...DEFAULT_BILLING_CONFIG, minimum_days: 0, day_count_mode: 'inclusive_start' as const };
 
 function issue(id: string, itemId: string, qty: number, movedAt: string, rate: number): Movement {
   return {
@@ -195,7 +195,7 @@ describe('a second bill', () => {
 describe('the minimum-days floor across periods', () => {
   // The floor is off by default now (the yard charges days held), so this
   // block states the 15 days it is about.
-  const CONFIG_MIN = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15 };
+  const CONFIG_MIN = { ...DEFAULT_BILLING_CONFIG, minimum_days: 15, day_count_mode: 'inclusive_start' as const };
 
   function draftWithMinimum(movements: Movement[], from: string, to: string, first = false) {
     return buildBillDraft({

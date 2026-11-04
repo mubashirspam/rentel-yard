@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 
-import { clientUuid, isoDate, longText, positivePaise, shortText, uuid } from './common';
+import { clientUuid, isoDate, longText, paise, positivePaise, shortText, uuid } from './common';
 
 export const PAYMENT_METHODS = ['cash', 'upi', 'bank', 'cheque', 'other'] as const;
 
@@ -29,11 +29,19 @@ export const billScope = z.enum(['all', 'returned']);
 
 const scopeWithDefault = billScope.default('returned');
 
+/**
+ * Discount off the bill's total, in paise. Zero or absent means none. Issuing
+ * records it as a credit dated on the bill's last day, so the bill and the
+ * account balance both come down by it.
+ */
+const billDiscount = paise.nonnegative('A discount cannot be negative.').optional();
+
 export const previewBillSchema = z.object({
   accountId: uuid,
   periodFrom: isoDate.optional(),
   periodTo: isoDate.optional(),
   scope: scopeWithDefault,
+  discount: z.coerce.number().int().nonnegative('A discount cannot be negative.').optional(),
 });
 
 export const issueBillSchema = z
@@ -45,6 +53,9 @@ export const issueBillSchema = z
     dueOn: isoDate.optional().nullable(),
     /** Defaults to `returned` — finished hire only. See `billScope`. */
     scope: scopeWithDefault,
+    discount: billDiscount,
+    /** Reason printed on the credit line. Defaults to "Discount". */
+    discountReason: shortText.optional().nullable(),
   })
   .refine((bill) => bill.periodFrom <= bill.periodTo, {
     message: 'The period ends before it starts.',

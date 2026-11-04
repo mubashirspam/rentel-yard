@@ -345,6 +345,12 @@ export const movements = pgTable(
     /** Paise per unit. Overrides the replacement rate when the admin typed one. */
     manualCharge: money('manual_charge'),
     movedAt: date('moved_at').notNull(),
+    /**
+     * ISSUE only: the day rent starts, when that is not the issue day. Lets an
+     * evening issue start billing the next morning. Null means `moved_at`. The
+     * units still count as out from `moved_at`.
+     */
+    billFrom: date('bill_from'),
     reversesId: uuid('reverses_id').references((): AnyPgColumn => movements.id),
     gatePassNo: text('gate_pass_no'),
     photoUrl: text('photo_url'),

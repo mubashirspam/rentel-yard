@@ -36,6 +36,11 @@ export interface Movement {
    * `config.minimum_days` applies instead — which is what it was billed at.
    */
   minDaysSnapshot?: number | null;
+  /**
+   * ISSUE only: the day rent starts, if later than `movedAt` (an evening issue
+   * billed from the next morning). Null or absent means `movedAt`.
+   */
+  billFrom?: IsoDate | null;
   /** Paise per unit. Overrides `replacementSnapshot` when the admin typed one. */
   manualCharge?: number;
   /** Set on REVERSAL rows: the id of the movement being cancelled. */

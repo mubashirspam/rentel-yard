@@ -58,9 +58,23 @@ beforeAll(async () => {
     [org.id],
   );
 
-  // No `settings` row: the org has not opened the settings screen yet, so the
-  // shipped defaults apply — inclusive_start, no minimum-days floor (the
-  // owner's rule: charge the days actually held), rounded to the nearest rupee.
+  // Every figure below was worked by hand counting nights (inclusive_start),
+  // so the org is pinned to that rule. The shipped default now bills both the
+  // issue and return day; the engine tests cover that mode.
+  await db.query(
+    `insert into settings (org_id, billing) values ($1, $2::jsonb)`,
+    [
+      org.id,
+      JSON.stringify({
+        day_count_mode: 'inclusive_start',
+        minimum_days: 0,
+        minimum_days_applies: 'per_issue_lot',
+        rounding: 'nearest_rupee',
+        damage_charge_mode: 'replacement_rate',
+        accrual_stops_on_bill: false,
+      }),
+    ],
+  );
   const [customer] = await db.query<{ id: string }>(
     `insert into customers (org_id, name, mobile) values ($1, 'Rahim Contractor', '+919846012345')
      returning id`,

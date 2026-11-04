@@ -7,6 +7,8 @@
 
 import { z } from 'zod';
 
+import { addDays } from '../accrual/dates';
+
 import { clientUuid, isoDate, longText, paise, quantity, uuid } from './common';
 
 /** Types a user can record directly. REVERSAL is minted by the reverse route. */
@@ -26,6 +28,11 @@ export const movementBatchSchema = z
     accountId: uuid,
     type: z.enum(RECORDABLE_TYPES),
     movedAt: isoDate,
+    /**
+     * ISSUE only: the day rent starts. The issue date or the day after (an
+     * evening issue billed from the next morning). Omit for the issue date.
+     */
+    billFrom: isoDate.optional().nullable(),
     lines: z.array(movementLineSchema).min(1, 'Add at least one item.').max(100),
     gatePassNo: z.string().trim().max(40).optional().nullable(),
     photoUrl: z.url().optional().nullable(),
@@ -41,7 +48,18 @@ export const movementBatchSchema = z
     // same date, which is legal but always a data-entry slip. Merge them.
     message: 'That item is on the gate pass twice — combine the quantities.',
     path: ['lines'],
-  });
+  })
+  .refine((batch) => !batch.billFrom || batch.type === 'ISSUE', {
+    message: 'Only an issue can have a billing start date.',
+    path: ['billFrom'],
+  })
+  .refine(
+    (batch) =>
+      !batch.billFrom ||
+      batch.billFrom === batch.movedAt ||
+      batch.billFrom === addDays(batch.movedAt, 1),
+    { message: 'Billing can start on the issue date or the day after.', path: ['billFrom'] },
+  );
 
 export type MovementBatchInput = z.infer<typeof movementBatchSchema>;
 export type MovementLineInput = z.infer<typeof movementLineSchema>;

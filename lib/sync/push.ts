@@ -149,6 +149,7 @@ async function applyMovementBatch(
         rateSnapshot: item.ratePerDay,
         replacementSnapshot: item.replacementRate,
         minDaysSnapshot: item.minimumDays,
+        billFrom: payload.type === 'ISSUE' ? (payload.billFrom ?? null) : null,
         manualCharge: line.manualCharge ?? undefined,
         createdAt: new Date().toISOString(),
       };
@@ -189,6 +190,7 @@ async function applyMovementBatch(
         minDaysSnapshot: item.minimumDays,
         manualCharge: line.manualCharge ?? null,
         movedAt: payload.movedAt,
+        billFrom: payload.type === 'ISSUE' ? (payload.billFrom ?? null) : null,
         gatePassNo: payload.gatePassNo ?? null,
         photoUrl: payload.photoUrl ?? null,
         signatureUrl: payload.signatureUrl ?? null,

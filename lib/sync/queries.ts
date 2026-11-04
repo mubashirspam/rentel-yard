@@ -44,6 +44,7 @@ interface MirrorMovement {
   rateSnapshot: number;
   replacementSnapshot: number;
   minDaysSnapshot?: number | null;
+  billFrom?: string | null;
   manualCharge?: number | null;
   reversesId?: string | null;
   createdAt: string;
@@ -189,6 +190,7 @@ export async function mirrorOutstanding(
       // read from the item master: the device carries it in the mirrored row
       // and gets the same answer as the server without ever syncing settings.
       minDaysSnapshot: row.minDaysSnapshot,
+      billFrom: row.billFrom ?? null,
       manualCharge: row.manualCharge ?? undefined,
       reversesId: row.reversesId,
       createdAt: row.createdAt,
