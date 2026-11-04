@@ -1,8 +1,9 @@
-import { handler, ok } from '@/lib/api/respond';
-import { getAccountDetail } from '@/lib/accounts/service';
+import { handler, ok, parseBody } from '@/lib/api/respond';
+import { deleteAccount, getAccountDetail, updateAccount } from '@/lib/accounts/service';
 import { requireCapability, requireSession } from '@/lib/auth/guard';
 import { today } from '@/lib/clock';
 import { isIsoDate } from '@/lib/accrual';
+import { updateAccountSchema } from '@/lib/validation/accounts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -22,3 +23,26 @@ export const GET = handler(
     return ok(await getAccountDetail(session, id, asOf));
   },
 );
+
+type Context = { params: Promise<{ id: string }> };
+
+/** Rename a site or change its address. */
+export const PATCH = handler(async (request: Request, context: Context) => {
+  const session = await requireSession();
+  requireCapability(session, 'account.manage');
+
+  const { id } = await context.params;
+  const input = await parseBody(request, updateAccountSchema);
+
+  return ok({ account: await updateAccount(session, id, input) });
+});
+
+/** Delete a site opened by mistake. Refused once it holds any history. */
+export const DELETE = handler(async (_request: Request, context: Context) => {
+  const session = await requireSession();
+  requireCapability(session, 'account.manage');
+
+  const { id } = await context.params;
+
+  return ok(await deleteAccount(session, id));
+});

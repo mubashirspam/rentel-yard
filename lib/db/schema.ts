@@ -209,11 +209,20 @@ export const customers = pgTable(
     creditLimit: money('credit_limit').notNull().default(0),
     notes: text('notes'),
     isBlocked: boolean('is_blocked').notNull().default(false),
+    /**
+     * Set when a customer added by mistake is deleted. Only a customer with
+     * nothing on the ledger can be deleted, so no history is lost. The row
+     * stays so offline devices learn about the delete through the pull.
+     */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     serverSeq: serverSeq(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    unique('customers_org_mobile_key').on(t.orgId, t.mobile),
+    // Partial, so a deleted customer's number can be registered again.
+    uniqueIndex('customers_org_mobile_key')
+      .on(t.orgId, t.mobile)
+      .where(sql`${t.deletedAt} is null`),
     index('customers_org_seq_idx').on(t.orgId, t.serverSeq),
   ],
 );
@@ -289,6 +298,8 @@ export const accounts = pgTable(
       .default('open'),
     openedOn: date('opened_on').notNull(),
     closedOn: date('closed_on'),
+    /** Set when a site opened by mistake is deleted. See `customers.deletedAt`. */
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id),
     serverSeq: serverSeq(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

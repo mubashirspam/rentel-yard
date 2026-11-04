@@ -20,7 +20,7 @@
  *     the response so the device can show it in "Needs attention".
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import { accrue, type Movement } from '../accrual';
 import { findAccount, loadBillingConfig, loadMovements } from '../accounts/repository';
@@ -292,7 +292,11 @@ async function applyCustomer(
       creditLimit: entry.payload.creditLimit,
       notes: entry.payload.notes ?? null,
     })
-    .onConflictDoNothing({ target: [schema.customers.orgId, schema.customers.mobile] })
+    .onConflictDoNothing({
+      target: [schema.customers.orgId, schema.customers.mobile],
+      // Matches the partial unique index: deleted customers free their number.
+      where: sql`${schema.customers.deletedAt} is null`,
+    })
     .returning({ id: schema.customers.id });
 
   if (row) {
@@ -306,6 +310,7 @@ async function applyCustomer(
       and(
         eq(schema.customers.orgId, session.orgId),
         eq(schema.customers.mobile, entry.payload.mobile),
+        isNull(schema.customers.deletedAt),
       ),
     )
     .limit(1);

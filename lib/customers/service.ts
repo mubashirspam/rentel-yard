@@ -5,11 +5,11 @@
  * usually one per construction site.
  */
 
-import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, isNull, ne, or, sql } from 'drizzle-orm';
 
-import { listAccounts, rollupByCustomer } from '../accounts/service';
+import { assertAccountsDeletable, listAccounts, rollupByCustomer } from '../accounts/service';
 import type { StaffSession } from '../auth/guard';
-import { db, schema } from '../db/client';
+import { db, schema, withTransaction } from '../db/client';
 import { LedgerError, ERROR_CODES } from '../errors';
 import type { CreateCustomerInput, UpdateCustomerInput } from '../validation/customers';
 
@@ -42,7 +42,7 @@ export async function searchCustomers(
   const database = db();
   const term = query?.trim();
 
-  const filters = [eq(schema.customers.orgId, session.orgId)];
+  const filters = [eq(schema.customers.orgId, session.orgId), isNull(schema.customers.deletedAt)];
 
   if (term) {
     // Match the mobile on digits alone, so "9846" finds "+919846012345".
@@ -100,7 +100,11 @@ export async function createCustomer(session: StaffSession, input: CreateCustome
     .select({ id: schema.customers.id, name: schema.customers.name })
     .from(schema.customers)
     .where(
-      and(eq(schema.customers.orgId, session.orgId), eq(schema.customers.mobile, input.mobile)),
+      and(
+        eq(schema.customers.orgId, session.orgId),
+        eq(schema.customers.mobile, input.mobile),
+        isNull(schema.customers.deletedAt),
+      ),
     )
     .limit(1);
 
@@ -138,6 +142,29 @@ export async function updateCustomer(
 ) {
   const database = db();
 
+  if (input.mobile !== undefined) {
+    // The unique index would refuse it anyway; this says who has the number.
+    const [taken] = await database
+      .select({ name: schema.customers.name })
+      .from(schema.customers)
+      .where(
+        and(
+          eq(schema.customers.orgId, session.orgId),
+          eq(schema.customers.mobile, input.mobile),
+          ne(schema.customers.id, customerId),
+          isNull(schema.customers.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (taken) {
+      throw new LedgerError(
+        ERROR_CODES.CONFLICT,
+        `${taken.name} is already registered with that number.`,
+        { field: 'mobile' },
+      );
+    }
+  }
+
   const [row] = await database
     .update(schema.customers)
     .set({
@@ -150,12 +177,61 @@ export async function updateCustomer(
       ...(input.isBlocked === undefined ? {} : { isBlocked: input.isBlocked }),
     })
     .where(
-      and(eq(schema.customers.id, customerId), eq(schema.customers.orgId, session.orgId)),
+      and(
+        eq(schema.customers.id, customerId),
+        eq(schema.customers.orgId, session.orgId),
+        isNull(schema.customers.deletedAt),
+      ),
     )
     .returning();
 
   if (!row) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That customer was not found.');
   return row;
+}
+
+/**
+ * Delete a customer added by mistake, with all their sites.
+ *
+ * Only allowed while nothing real is on any of their sites: no equipment
+ * movement that still stands, no payment, adjustment or bill. Anything else is
+ * history the yard may need, and is refused with the reason.
+ */
+export async function deleteCustomer(session: StaffSession, customerId: string) {
+  return withTransaction(async (tx) => {
+    const [customer] = await tx
+      .select({ id: schema.customers.id })
+      .from(schema.customers)
+      .where(
+        and(
+          eq(schema.customers.id, customerId),
+          eq(schema.customers.orgId, session.orgId),
+          isNull(schema.customers.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!customer) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That customer was not found.');
+
+    const sites = await tx
+      .select({ id: schema.accounts.id, siteName: schema.accounts.siteName })
+      .from(schema.accounts)
+      .where(and(eq(schema.accounts.customerId, customerId), isNull(schema.accounts.deletedAt)));
+
+    await assertAccountsDeletable(tx, sites, 'customer');
+
+    const now = new Date();
+    if (sites.length > 0) {
+      await tx
+        .update(schema.accounts)
+        .set({ deletedAt: now })
+        .where(and(eq(schema.accounts.customerId, customerId), isNull(schema.accounts.deletedAt)));
+    }
+    await tx
+      .update(schema.customers)
+      .set({ deletedAt: now })
+      .where(eq(schema.customers.id, customerId));
+
+    return { id: customerId, deletedSites: sites.map((site) => site.id) };
+  });
 }
 
 /** Profile, accounts, and total outstanding across every site (§06). */
@@ -170,7 +246,11 @@ export async function getCustomerDetail(
     .select()
     .from(schema.customers)
     .where(
-      and(eq(schema.customers.id, customerId), eq(schema.customers.orgId, session.orgId)),
+      and(
+        eq(schema.customers.id, customerId),
+        eq(schema.customers.orgId, session.orgId),
+        isNull(schema.customers.deletedAt),
+      ),
     )
     .limit(1);
 

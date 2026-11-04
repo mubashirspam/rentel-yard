@@ -7,7 +7,7 @@
  * cannot be validated locally without the lots it consumes.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { loadBillingConfig } from '../accounts/repository';
 import type { StaffSession } from '../auth/guard';
@@ -44,11 +44,20 @@ export async function getBootstrap(session: StaffSession): Promise<BootstrapPayl
       .limit(1),
     loadBillingConfig(database, org),
     listStock(session),
-    database.select().from(schema.customers).where(eq(schema.customers.orgId, org)),
+    database
+      .select()
+      .from(schema.customers)
+      .where(and(eq(schema.customers.orgId, org), isNull(schema.customers.deletedAt))),
     database
       .select()
       .from(schema.accounts)
-      .where(and(eq(schema.accounts.orgId, org), eq(schema.accounts.status, 'open'))),
+      .where(
+        and(
+          eq(schema.accounts.orgId, org),
+          eq(schema.accounts.status, 'open'),
+          isNull(schema.accounts.deletedAt),
+        ),
+      ),
     database
       .select({ yardPhone: schema.settings.yardPhone })
       .from(schema.settings)

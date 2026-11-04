@@ -71,3 +71,47 @@ export const reverseMovementSchema = z.object({
 });
 
 export type ReverseMovementInput = z.infer<typeof reverseMovementSchema>;
+
+/**
+ * Correct an issue recorded wrongly (`POST /api/movements/amend`).
+ *
+ * Names the issue lines being corrected and what each should be now. A line
+ * left out of `lines` is taken off the issue. Only allowed before anything is
+ * returned against those lines and before a bill covers them.
+ */
+export const amendIssueSchema = z
+  .object({
+    accountId: uuid,
+    /** Every line of the issue being corrected, as recorded. */
+    movementIds: z.array(uuid).min(1).max(100),
+    /** What should stand. Empty removes the whole issue. */
+    lines: z
+      .array(z.object({ movementId: uuid, qty: quantity }))
+      .max(100),
+    movedAt: isoDate,
+    billFrom: isoDate.optional().nullable(),
+    gatePassNo: z.string().trim().max(40).optional().nullable(),
+    reason: z.string().trim().min(3, 'Say why this is being changed.').max(200),
+    clientUuid,
+  })
+  .refine((input) => new Set(input.movementIds).size === input.movementIds.length, {
+    message: 'A line is listed twice.',
+    path: ['movementIds'],
+  })
+  .refine((input) => input.lines.every((line) => input.movementIds.includes(line.movementId)), {
+    message: 'A line does not belong to this issue.',
+    path: ['lines'],
+  })
+  .refine((input) => new Set(input.lines.map((l) => l.movementId)).size === input.lines.length, {
+    message: 'A line is listed twice.',
+    path: ['lines'],
+  })
+  .refine(
+    (input) =>
+      !input.billFrom ||
+      input.billFrom === input.movedAt ||
+      input.billFrom === addDays(input.movedAt, 1),
+    { message: 'Billing can start on the issue date or the day after.', path: ['billFrom'] },
+  );
+
+export type AmendIssueInput = z.infer<typeof amendIssueSchema>;

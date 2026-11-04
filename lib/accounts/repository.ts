@@ -7,7 +7,7 @@
  * bill generator, and the reports.
  */
 
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import type { Movement } from '../accrual';
 import { assertBillingConfig, DEFAULT_BILLING_CONFIG, type BillingConfig } from '../accrual';
@@ -103,7 +103,13 @@ export async function findAccount(
       closedOn: schema.accounts.closedOn,
     })
     .from(schema.accounts)
-    .where(and(eq(schema.accounts.id, accountId), eq(schema.accounts.orgId, orgId)))
+    .where(
+      and(
+        eq(schema.accounts.id, accountId),
+        eq(schema.accounts.orgId, orgId),
+        isNull(schema.accounts.deletedAt),
+      ),
+    )
     .limit(1);
 
   return row ?? null;

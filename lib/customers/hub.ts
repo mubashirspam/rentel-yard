@@ -26,7 +26,7 @@ import { getCustomerSites, type CustomerSite } from '../accounts/service';
 import type { StaffSession } from '../auth/guard';
 import { listBillsForAccounts, type BillSummary } from '../bills/service';
 import { db, schema } from '../db/client';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { ERROR_CODES, LedgerError } from '../errors';
 
 /** One khata, with the money questions answered alongside the equipment ones. */
@@ -76,7 +76,13 @@ export async function getCustomerHub(
   const [customer] = await database
     .select()
     .from(schema.customers)
-    .where(and(eq(schema.customers.id, customerId), eq(schema.customers.orgId, session.orgId)))
+    .where(
+      and(
+        eq(schema.customers.id, customerId),
+        eq(schema.customers.orgId, session.orgId),
+        isNull(schema.customers.deletedAt),
+      ),
+    )
     .limit(1);
 
   // Cross-org rows are 404, not 403 (D22) — the caller turns this into one.

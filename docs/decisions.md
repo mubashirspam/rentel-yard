@@ -1064,3 +1064,30 @@ was in the dates:
   ISSUE date (or `opened_on` when nothing has gone out), and a first bill
   may not start after the first issue, or that rent would never be billed.
 - The apps fix "From" to the server's default and let staff choose only "To".
+
+### D72. Fixing mistakes: edit customers and sites, edit an issue, delete what was added wrongly
+
+Owner request: edit a customer's name and mobile and a site's name, delete
+ones added by mistake, and correct an issue (quantities, items, details)
+before anything is returned or billed.
+
+- **Customers and sites** edit in place (`PATCH /api/customers/:id`,
+  `PATCH /api/accounts/:id`). They are not ledger rows, so §00 rule 1 does
+  not apply. Changing a mobile to one another customer holds is refused by
+  name.
+- **Delete** sets `deleted_at` rather than removing the row, so offline
+  devices see the change on their next pull and drop it. Allowed only when
+  the site (or every site of the customer) has no standing movement, payment,
+  adjustment or bill. Deleted rows are hidden from every list, lookup and the
+  bootstrap. The mobile unique key is now partial (`where deleted_at is
+  null`), so the number can be registered again. A deleted General khata
+  comes back when next needed, like a closed one.
+- **Editing an issue** (`POST /api/movements/amend`) keeps the ledger
+  append-only: each changed line is reversed and re-issued in one
+  transaction, with its original rate, replacement and minimum-day
+  snapshots. Refused once any of those lots has a return, or once a bill's
+  `period_to` reaches the issue date — after that, the customer's paperwork
+  would no longer match. Reversal stays available for later corrections.
+- All of these need a connection. They are rare, and the server must check
+  returns, bills and payments that a device may not have. The Flutter app
+  also refuses while it has unsent work for that site or customer.

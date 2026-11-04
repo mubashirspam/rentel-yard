@@ -5,7 +5,7 @@
  * as a mutable balance or count (§00 rule 2).
  */
 
-import { and, asc, desc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 
 import {
   accrue,
@@ -21,7 +21,11 @@ import {
 import type { StaffSession } from '../auth/guard';
 import { db, schema, withTransaction, type Database } from '../db/client';
 import { LedgerError, ERROR_CODES } from '../errors';
-import type { CloseAccountInput, OpenAccountInput } from '../validation/accounts';
+import type {
+  CloseAccountInput,
+  OpenAccountInput,
+  UpdateAccountInput,
+} from '../validation/accounts';
 import {
   findAccount,
   loadAdjustments,
@@ -145,7 +149,11 @@ export async function openAccount(
     .select({ id: schema.customers.id, isBlocked: schema.customers.isBlocked })
     .from(schema.customers)
     .where(
-      and(eq(schema.customers.id, input.customerId), eq(schema.customers.orgId, session.orgId)),
+      and(
+        eq(schema.customers.id, input.customerId),
+        eq(schema.customers.orgId, session.orgId),
+        isNull(schema.customers.deletedAt),
+      ),
     )
     .limit(1);
 
@@ -228,15 +236,18 @@ export async function defaultAccount(
       status: schema.accounts.status,
       openedOn: schema.accounts.openedOn,
       closedOn: schema.accounts.closedOn,
+      deletedAt: schema.accounts.deletedAt,
     })
     .from(schema.accounts)
     .where(and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.clientUuid, key)))
     .limit(1);
 
-  if (row.status === 'closed') {
+  // A General khata deleted while empty comes back the same way a closed one
+  // does: the customer is being lent to again.
+  if (row.status === 'closed' || row.deletedAt) {
     const [reopened] = await database
       .update(schema.accounts)
-      .set({ status: 'open', closedOn: null })
+      .set({ status: 'open', closedOn: null, deletedAt: null })
       .where(eq(schema.accounts.id, row.id))
       .returning({
         id: schema.accounts.id,
@@ -251,7 +262,16 @@ export async function defaultAccount(
     return reopened;
   }
 
-  return row;
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    customerId: row.customerId,
+    siteName: row.siteName,
+    siteAddress: row.siteAddress,
+    status: row.status,
+    openedOn: row.openedOn,
+    closedOn: row.closedOn,
+  };
 }
 
 /**
@@ -449,6 +469,138 @@ export interface AccountListFilters {
   limit?: number;
 }
 
+/** Rename a site, or change its address. */
+export async function updateAccount(
+  session: StaffSession,
+  accountId: string,
+  input: UpdateAccountInput,
+): Promise<AccountRow> {
+  const database = db();
+
+  const [row] = await database
+    .update(schema.accounts)
+    .set({
+      ...(input.siteName === undefined ? {} : { siteName: input.siteName }),
+      ...(input.siteAddress === undefined ? {} : { siteAddress: input.siteAddress }),
+    })
+    .where(
+      and(
+        eq(schema.accounts.id, accountId),
+        eq(schema.accounts.orgId, session.orgId),
+        isNull(schema.accounts.deletedAt),
+      ),
+    )
+    .returning({
+      id: schema.accounts.id,
+      orgId: schema.accounts.orgId,
+      customerId: schema.accounts.customerId,
+      siteName: schema.accounts.siteName,
+      siteAddress: schema.accounts.siteAddress,
+      status: schema.accounts.status,
+      openedOn: schema.accounts.openedOn,
+      closedOn: schema.accounts.closedOn,
+    });
+
+  if (!row) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That site was not found.');
+  return row;
+}
+
+/**
+ * Refuse unless every account given is empty of history: each movement on it
+ * reversed, and no payment, adjustment or bill. Shared by deleting a site and
+ * deleting a customer, so both say the same thing for the same reason.
+ */
+export async function assertAccountsDeletable(
+  tx: Database,
+  accounts: ReadonlyArray<{ id: string; siteName: string }>,
+  what: 'site' | 'customer',
+): Promise<void> {
+  if (accounts.length === 0) return;
+  const ids = accounts.map((account) => account.id);
+  const where = (id: string) =>
+    what === 'customer'
+      ? ` on ${accounts.find((account) => account.id === id)?.siteName ?? 'a site'}`
+      : '';
+  const subject = what === 'customer' ? 'This customer' : 'This site';
+
+  const [bill] = await tx
+    .select({ accountId: schema.bills.accountId, invoiceNo: schema.bills.invoiceNo })
+    .from(schema.bills)
+    .where(inArray(schema.bills.accountId, ids))
+    .limit(1);
+  if (bill) {
+    throw new LedgerError(
+      ERROR_CODES.CONFLICT,
+      `${subject} has bill ${bill.invoiceNo}${where(bill.accountId)}, so it cannot be deleted.`,
+    );
+  }
+
+  const [payment] = await tx
+    .select({ accountId: schema.payments.accountId })
+    .from(schema.payments)
+    .where(inArray(schema.payments.accountId, ids))
+    .limit(1);
+  if (payment) {
+    throw new LedgerError(
+      ERROR_CODES.CONFLICT,
+      `${subject} has a payment${where(payment.accountId)}, so it cannot be deleted.`,
+    );
+  }
+
+  const [adjustment] = await tx
+    .select({ accountId: schema.adjustments.accountId })
+    .from(schema.adjustments)
+    .where(inArray(schema.adjustments.accountId, ids))
+    .limit(1);
+  if (adjustment) {
+    throw new LedgerError(
+      ERROR_CODES.CONFLICT,
+      `${subject} has a charge or credit${where(adjustment.accountId)}, so it cannot be deleted.`,
+    );
+  }
+
+  const movements = await tx
+    .select({
+      id: schema.movements.id,
+      accountId: schema.movements.accountId,
+      type: schema.movements.type,
+      reversesId: schema.movements.reversesId,
+    })
+    .from(schema.movements)
+    .where(inArray(schema.movements.accountId, ids));
+  const reversed = new Set(
+    movements.filter((m) => m.type === 'REVERSAL').map((m) => m.reversesId),
+  );
+  const standing = movements.find((m) => m.type !== 'REVERSAL' && !reversed.has(m.id));
+  if (standing) {
+    throw new LedgerError(
+      ERROR_CODES.CONFLICT,
+      `${subject} has equipment entries${where(standing.accountId)}. Delete those issues first.`,
+    );
+  }
+}
+
+/**
+ * Delete a site opened by mistake. Only while it holds no history — see
+ * `assertAccountsDeletable`. The row is kept, marked deleted, so offline
+ * devices drop it on their next pull.
+ */
+export async function deleteAccount(session: StaffSession, accountId: string) {
+  return withTransaction(async (tx) => {
+    const account = await findAccount(tx, session.orgId, accountId);
+    if (!account) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That site was not found.');
+
+    await assertAccountsDeletable(tx, [account], 'site');
+
+    await tx
+      .update(schema.accounts)
+      .set({ deletedAt: new Date() })
+      .where(eq(schema.accounts.id, accountId));
+
+    return { id: accountId };
+  });
+}
+
 /**
  * Accounts with what each currently owes and holds.
  *
@@ -463,7 +615,7 @@ export async function listAccounts(
   const database = db();
   const { status = 'open', q, customerId, limit = 100 } = filters;
 
-  const conditions = [eq(schema.accounts.orgId, session.orgId)];
+  const conditions = [eq(schema.accounts.orgId, session.orgId), isNull(schema.accounts.deletedAt)];
   if (status !== 'all') conditions.push(eq(schema.accounts.status, status));
   if (customerId) conditions.push(eq(schema.accounts.customerId, customerId));
 
@@ -590,6 +742,7 @@ export async function rollupByCustomer(
       and(
         eq(schema.accounts.orgId, session.orgId),
         inArray(schema.accounts.customerId, [...customerIds]),
+        isNull(schema.accounts.deletedAt),
       ),
     );
 
@@ -750,7 +903,11 @@ export async function getCustomerSites(
     })
     .from(schema.accounts)
     .where(
-      and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.customerId, customerId)),
+      and(
+        eq(schema.accounts.orgId, session.orgId),
+        eq(schema.accounts.customerId, customerId),
+        isNull(schema.accounts.deletedAt),
+      ),
     )
     .orderBy(desc(schema.accounts.openedOn));
 

@@ -11,6 +11,15 @@ export const openAccountSchema = z.object({
 
 export type OpenAccountInput = z.infer<typeof openAccountSchema>;
 
+export const updateAccountSchema = z
+  .object({
+    siteName: shortText,
+    siteAddress: longText.nullable(),
+  })
+  .partial();
+
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+
 export const closeAccountSchema = z.object({
   closedOn: isoDate,
 });

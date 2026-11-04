@@ -71,6 +71,13 @@
       "when": 1793784510619,
       "tag": "0009_payment_discount",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793803607103,
+      "tag": "0010_soft_delete_customers_sites",
+      "breakpoints": true
     }
   ]
 }

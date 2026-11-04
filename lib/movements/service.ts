@@ -12,13 +12,17 @@
  *     below zero — a state that makes every later `accrue()` throw.
  */
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, gte, inArray } from 'drizzle-orm';
 
 import { accrue, type Movement } from '../accrual';
 import type { StaffSession } from '../auth/guard';
 import { schema, withTransaction, type Database } from '../db/client';
 import { LedgerError, ERROR_CODES } from '../errors';
-import type { MovementBatchInput, ReverseMovementInput } from '../validation/movements';
+import type {
+  AmendIssueInput,
+  MovementBatchInput,
+  ReverseMovementInput,
+} from '../validation/movements';
 import { findAccount, loadBillingConfig, loadMovements } from '../accounts/repository';
 
 export interface RecordedMovement {
@@ -244,6 +248,229 @@ export async function reverseMovement(
       .returning({ id: schema.movements.id, reversesId: schema.movements.reversesId });
 
     return { id: row.id, reversesId: row.reversesId as string };
+  });
+}
+
+export interface AmendIssueResult {
+  /** False when nothing differed from what was recorded. */
+  changed: boolean;
+  /** REVERSAL rows written, one per line taken off or replaced. */
+  reversalIds: string[];
+  /** The replacement ISSUE rows. */
+  movementIds: string[];
+}
+
+/**
+ * Correct an issue recorded wrongly: change a quantity, take a line off, or
+ * fix the date, billing start or gate pass (§02).
+ *
+ * The ledger stays append-only. Each line that changes is reversed and
+ * re-issued with the corrected values and its original rate snapshots, so a
+ * rate change since the issue never reprices it. All of it commits together.
+ *
+ * Refused once anything has been returned against those lines, or once a bill
+ * covers them — after either, the paperwork the customer holds would no
+ * longer match. Use a return or a reversal then.
+ */
+export async function amendIssue(
+  session: StaffSession,
+  input: AmendIssueInput,
+  today: string,
+): Promise<AmendIssueResult> {
+  if (input.movedAt > today) {
+    throw new LedgerError(
+      ERROR_CODES.INVALID_DATE,
+      'That date is in the future. Rent cannot start before the equipment leaves.',
+      { field: 'movedAt' },
+    );
+  }
+
+  const reversalKey = (i: number) => `${input.clientUuid}:r${i}`;
+  const issueKey = (i: number) => `${input.clientUuid}:n${i}`;
+
+  return withTransaction(async (tx) => {
+    const account = await findAccount(tx, session.orgId, input.accountId);
+    if (!account) throw new LedgerError(ERROR_CODES.NOT_FOUND, 'That site was not found.');
+    if (account.status === 'closed') {
+      throw new LedgerError(ERROR_CODES.CONFLICT, 'That site is closed. Reopen it first.');
+    }
+
+    // Pushed twice: the first push already wrote everything.
+    const keys = input.movementIds.flatMap((_, i) => [reversalKey(i), issueKey(i)]);
+    const earlier = await tx
+      .select({ id: schema.movements.id, type: schema.movements.type })
+      .from(schema.movements)
+      .where(
+        and(eq(schema.movements.orgId, session.orgId), inArray(schema.movements.clientUuid, keys)),
+      );
+    if (earlier.length > 0) {
+      return {
+        changed: true,
+        reversalIds: earlier.filter((m) => m.type === 'REVERSAL').map((m) => m.id),
+        movementIds: earlier.filter((m) => m.type !== 'REVERSAL').map((m) => m.id),
+      };
+    }
+
+    const originals = await tx
+      .select()
+      .from(schema.movements)
+      .where(
+        and(
+          eq(schema.movements.orgId, session.orgId),
+          eq(schema.movements.accountId, input.accountId),
+          inArray(schema.movements.id, input.movementIds),
+        ),
+      );
+    if (originals.length !== input.movementIds.length) {
+      throw new LedgerError(ERROR_CODES.NOT_FOUND, 'Part of that issue was not found on this site.');
+    }
+    if (originals.some((m) => m.type !== 'ISSUE')) {
+      throw new LedgerError(ERROR_CODES.CONFLICT, 'Only an issue can be edited this way.');
+    }
+
+    const existing = await loadMovements(tx, input.accountId);
+    const reversed = new Set(
+      existing.filter((m) => m.type === 'REVERSAL').map((m) => m.reversesId),
+    );
+    if (originals.some((m) => reversed.has(m.id))) {
+      throw new LedgerError(
+        ERROR_CODES.CONFLICT,
+        'Part of that issue was already reversed. Refresh and try again.',
+      );
+    }
+
+    // Before billing: no bill may reach the earliest day involved.
+    const earliest = [input.movedAt, ...originals.map((m) => m.movedAt)].sort()[0];
+    const [bill] = await tx
+      .select({ invoiceNo: schema.bills.invoiceNo })
+      .from(schema.bills)
+      .where(and(eq(schema.bills.accountId, input.accountId), gte(schema.bills.periodTo, earliest)))
+      .limit(1);
+    if (bill) {
+      throw new LedgerError(
+        ERROR_CODES.CONFLICT,
+        `Bill ${bill.invoiceNo} already covers this issue, so it cannot be edited.`,
+      );
+    }
+
+    // Before return: nothing may have come back out of these lots.
+    const config = await loadBillingConfig(tx, session.orgId);
+    const ids = new Set(input.movementIds);
+    const returned = accrue(existing, config, today).lines.find(
+      (line) => ids.has(line.lotId) && line.to !== null,
+    );
+    if (returned) {
+      throw new LedgerError(
+        ERROR_CODES.CONFLICT,
+        'Some of this issue has already been returned, so it cannot be edited.',
+        { context: { movementId: returned.lotId } },
+      );
+    }
+
+    const billFrom = input.billFrom && input.billFrom !== input.movedAt ? input.billFrom : null;
+    const gatePassNo = input.gatePassNo?.trim() ? input.gatePassNo.trim() : null;
+    const now = new Date().toISOString();
+
+    const reversals: Array<typeof schema.movements.$inferInsert> = [];
+    const reissues: Array<typeof schema.movements.$inferInsert> = [];
+
+    input.movementIds.forEach((movementId, i) => {
+      const original = originals.find((m) => m.id === movementId)!;
+      const wanted = input.lines.find((line) => line.movementId === movementId);
+      const same =
+        wanted !== undefined &&
+        wanted.qty === original.qty &&
+        input.movedAt === original.movedAt &&
+        billFrom === (original.billFrom ?? null) &&
+        gatePassNo === (original.gatePassNo ?? null);
+      if (same) return;
+
+      reversals.push({
+        orgId: session.orgId,
+        accountId: original.accountId,
+        itemId: original.itemId,
+        type: 'REVERSAL',
+        qty: original.qty,
+        rateSnapshot: original.rateSnapshot,
+        replacementSnapshot: original.replacementSnapshot,
+        minDaysSnapshot: original.minDaysSnapshot,
+        movedAt: today,
+        reversesId: original.id,
+        remarks: input.reason,
+        clientUuid: reversalKey(i),
+        createdBy: session.userId,
+      });
+
+      if (wanted) {
+        reissues.push({
+          orgId: session.orgId,
+          accountId: original.accountId,
+          itemId: original.itemId,
+          type: 'ISSUE',
+          qty: wanted.qty,
+          rateSnapshot: original.rateSnapshot,
+          replacementSnapshot: original.replacementSnapshot,
+          minDaysSnapshot: original.minDaysSnapshot,
+          manualCharge: original.manualCharge,
+          movedAt: input.movedAt,
+          billFrom,
+          gatePassNo,
+          photoUrl: original.photoUrl,
+          signatureUrl: original.signatureUrl,
+          remarks: original.remarks,
+          clientUuid: issueKey(i),
+          deviceId: original.deviceId,
+          createdBy: session.userId,
+        });
+      }
+    });
+
+    if (reversals.length === 0) return { changed: false, reversalIds: [], movementIds: [] };
+
+    // A later-dated issue could leave a return with nothing to come out of.
+    const candidate: Movement[] = [
+      ...existing,
+      ...[...reversals, ...reissues].map((row, index) => ({
+        id: row.type === 'REVERSAL' ? `pending-reversal-${index}` : `pending-issue-${index}`,
+        itemId: row.itemId,
+        type: row.type,
+        qty: row.qty,
+        movedAt: row.movedAt,
+        rateSnapshot: row.rateSnapshot,
+        replacementSnapshot: row.replacementSnapshot ?? 0,
+        minDaysSnapshot: row.minDaysSnapshot ?? null,
+        billFrom: row.billFrom ?? null,
+        reversesId: row.reversesId ?? null,
+        createdAt: now,
+      })),
+    ];
+    try {
+      accrue(candidate, config, today);
+    } catch (error) {
+      if (error instanceof LedgerError && error.code === ERROR_CODES.RETURN_EXCEEDS_OUTSTANDING) {
+        throw new LedgerError(
+          ERROR_CODES.CONFLICT,
+          'A later return would no longer fit. Check the date and quantities.',
+          { context: error.context },
+        );
+      }
+      throw error;
+    }
+
+    const reversalRows = await tx
+      .insert(schema.movements)
+      .values(reversals)
+      .returning({ id: schema.movements.id });
+    const issueRows =
+      reissues.length === 0
+        ? []
+        : await tx.insert(schema.movements).values(reissues).returning({ id: schema.movements.id });
+
+    return {
+      changed: true,
+      reversalIds: reversalRows.map((row) => row.id),
+      movementIds: issueRows.map((row) => row.id),
+    };
   });
 }
 

@@ -19,7 +19,7 @@
  * what is wrong.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 
 import { accrue, computeBalance } from '../accrual';
 import { loadBillingConfig, loadLedgers } from '../accounts/repository';
@@ -127,7 +127,13 @@ export async function getDashboard(
     })
     .from(schema.accounts)
     .innerJoin(schema.customers, eq(schema.customers.id, schema.accounts.customerId))
-    .where(and(eq(schema.accounts.orgId, session.orgId), eq(schema.accounts.status, 'open')));
+    .where(
+      and(
+        eq(schema.accounts.orgId, session.orgId),
+        eq(schema.accounts.status, 'open'),
+        isNull(schema.accounts.deletedAt),
+      ),
+    );
 
   const [config, ledgers, items, stock, todayMovements, overdue, money] = await Promise.all([
     loadBillingConfig(database, session.orgId),
