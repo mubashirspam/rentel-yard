@@ -514,6 +514,7 @@ export async function syncAllocations(
       .select({
         id: schema.payments.id,
         amount: schema.payments.amount,
+        discount: schema.payments.discount,
         paidOn: schema.payments.paidOn,
       })
       .from(schema.payments)

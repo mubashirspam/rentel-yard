@@ -21,9 +21,19 @@ export interface AdjustmentInput {
 
 export interface PaymentInput {
   id: string;
-  /** Paise, always positive. */
+  /** Paise of money received. Zero when the payment is a discount only. */
   amount: number;
+  /**
+   * Paise let off when this payment was taken. It settles bills and lowers the
+   * balance like money does, but it is not money received. Absent means none.
+   */
+  discount?: number;
   paidOn: IsoDate;
+}
+
+/** Paise a payment settles: the money plus any discount given with it. */
+export function settledBy(payment: Pick<PaymentInput, 'amount' | 'discount'>): number {
+  return payment.amount + (payment.discount ?? 0);
 }
 
 export interface AccountBalance {
@@ -32,13 +42,15 @@ export interface AccountBalance {
   chargesTotal: number;
   creditsTotal: number;
   paidTotal: number;
+  /** Paise let off at payment time (see `PaymentInput.discount`). */
+  discountTotal: number;
   /** Paise. Positive means the customer owes the yard. */
   balance: number;
   status: AccountStatus;
 }
 
 /**
- * balance = rent + damages + charges − payments − credits
+ * balance = rent + damages + charges − payments − payment discounts − credits
  */
 export function computeBalance(input: {
   accrual: Pick<AccrualResult, 'rentTotal' | 'damageTotal'>;
@@ -55,7 +67,9 @@ export function computeBalance(input: {
   }
 
   const paidTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const balance = accrual.rentTotal + accrual.damageTotal + chargesTotal - paidTotal - creditsTotal;
+  const discountTotal = payments.reduce((sum, payment) => sum + (payment.discount ?? 0), 0);
+  const balance =
+    accrual.rentTotal + accrual.damageTotal + chargesTotal - paidTotal - discountTotal - creditsTotal;
 
   return {
     rentTotal: accrual.rentTotal,
@@ -63,6 +77,7 @@ export function computeBalance(input: {
     chargesTotal,
     creditsTotal,
     paidTotal,
+    discountTotal,
     balance,
     status: balance > 0 ? 'due' : balance < 0 ? 'advance' : 'settled',
   };
@@ -139,7 +154,7 @@ export function allocatePayments(
   const unallocatedByPayment: Record<string, number> = {};
 
   for (const payment of orderedPayments) {
-    let left = payment.amount;
+    let left = settledBy(payment);
 
     for (const bill of orderedBills) {
       if (left === 0) break;

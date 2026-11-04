@@ -76,13 +76,21 @@ export type IssueBillInput = z.input<typeof issueBillSchema>;
 export const recordPaymentSchema = z.object({
   accountId: uuid,
   /** Integer paise. The form converts from rupees before it gets here. */
-  amount: positivePaise,
+  amount: paise,
+  /**
+   * Paise let off with this payment. Settles bills and lowers the balance, but
+   * is not counted as money received. Zero or absent means none.
+   */
+  discount: paise.optional(),
   method: z.enum(PAYMENT_METHODS),
   paidOn: isoDate,
   /** UPI reference, cheque number, whatever the yard writes in the book. */
   reference: z.string().trim().max(80).optional().nullable(),
   remarks: longText.optional().nullable(),
   clientUuid,
+}).refine((p) => p.amount + (p.discount ?? 0) > 0, {
+  message: 'Enter an amount or a discount above zero.',
+  path: ['amount'],
 });
 
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;

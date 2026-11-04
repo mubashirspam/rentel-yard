@@ -18,6 +18,7 @@ export {
   computeBalance,
   billPaymentStatus,
   allocatePayments,
+  settledBy,
   type AccountStatus,
   type AccountBalance,
   type AdjustmentInput,

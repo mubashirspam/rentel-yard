@@ -391,6 +391,11 @@ export const payments = pgTable(
       .references(() => accounts.id),
     /** Paise. Payments are recorded here, never processed — no gateway in v1. */
     amount: money('amount').notNull(),
+    /**
+     * Paise let off when the money was taken ("pay 9,500, we'll call it
+     * square"). Settles bills like money, but is not money received.
+     */
+    discount: money('discount').notNull().default(0),
     method: text('method', { enum: ['cash', 'upi', 'bank', 'cheque', 'other'] }).notNull(),
     reference: text('reference'),
     paidOn: date('paid_on').notNull(),
@@ -402,7 +407,9 @@ export const payments = pgTable(
   },
   (t) => [
     unique('payments_org_client_uuid_key').on(t.orgId, t.clientUuid),
-    check('payments_amount_check', sql`${t.amount} > 0`),
+    check('payments_amount_check', sql`${t.amount} >= 0`),
+    check('payments_discount_check', sql`${t.discount} >= 0`),
+    check('payments_total_check', sql`${t.amount} + ${t.discount} > 0`),
     check(
       'payments_method_check',
       sql`${t.method} in ('cash', 'upi', 'bank', 'cheque', 'other')`,

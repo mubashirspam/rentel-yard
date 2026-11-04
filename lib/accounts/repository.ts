@@ -115,6 +115,7 @@ export async function loadPayments(db: Database, accountId: string) {
     .select({
       id: schema.payments.id,
       amount: schema.payments.amount,
+      discount: schema.payments.discount,
       paidOn: schema.payments.paidOn,
       method: schema.payments.method,
       reference: schema.payments.reference,
@@ -193,6 +194,7 @@ export async function loadLedgers(
         accountId: schema.payments.accountId,
         id: schema.payments.id,
         amount: schema.payments.amount,
+        discount: schema.payments.discount,
         paidOn: schema.payments.paidOn,
         method: schema.payments.method,
         reference: schema.payments.reference,

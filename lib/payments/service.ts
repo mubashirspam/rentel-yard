@@ -29,6 +29,8 @@ import type { AddAdjustmentInput, RecordPaymentInput } from '../validation/money
 export interface PaymentRecord {
   id: string;
   amount: number;
+  /** Paise let off with this payment. */
+  discount: number;
   method: string;
   reference: string | null;
   paidOn: string;
@@ -79,6 +81,7 @@ export async function recordPayment(
         orgId: session.orgId,
         accountId: input.accountId,
         amount: input.amount,
+        discount: input.discount ?? 0,
         method: input.method,
         reference: input.reference ?? null,
         paidOn: input.paidOn,
@@ -109,6 +112,7 @@ export async function recordPayment(
       payment: {
         id: row.id,
         amount: row.amount,
+        discount: row.discount,
         method: row.method,
         reference: row.reference,
         paidOn: row.paidOn,
@@ -117,7 +121,7 @@ export async function recordPayment(
       },
       allocatedToBills,
       // Money beyond what is billed sits as an advance until the next bill.
-      unallocated: row.amount - allocatedToBills,
+      unallocated: row.amount + row.discount - allocatedToBills,
     };
   });
 }
@@ -130,6 +134,7 @@ export async function listPayments(
     .select({
       id: schema.payments.id,
       amount: schema.payments.amount,
+      discount: schema.payments.discount,
       method: schema.payments.method,
       reference: schema.payments.reference,
       paidOn: schema.payments.paidOn,
