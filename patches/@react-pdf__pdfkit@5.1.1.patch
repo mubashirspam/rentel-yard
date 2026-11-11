@@ -1,0 +1,43 @@
+diff --git a/lib/pdfkit.js b/lib/pdfkit.js
+index 3619d74e5c24c7533603a9dc41b45fbd4a7465b0..42f4e4a4b6ac7a06c4e55b81329c1a0a499aa829 100644
+--- a/lib/pdfkit.js
++++ b/lib/pdfkit.js
+@@ -49,22 +49,15 @@ class PDFReference extends stream.Writable {
+     if (this.data.Length == null) {
+       this.data.Length = 0;
+     }
+-    if (this.compress) {
+-      if (!this.deflate) {
+-        this.initDeflate();
+-      }
+-      this.deflate.write(chunk);
+-    } else {
+-      this.chunks.push(chunk);
+-      this.data.Length += chunk.length;
+-    }
++    // Patched: compress in finalize() with deflateSync rather than through an
++    // async deflate stream, so objects are written in the same order on every
++    // render and the same bill always produces the same bytes.
++    this.chunks.push(chunk);
++    this.data.Length += chunk.length;
+     return callback();
+   }
+   end() {
+     super.end(...arguments);
+-    if (this.deflate) {
+-      return this.deflate.end();
+-    }
+     return this.finalize();
+   }
+   finalize() {
+@@ -72,6 +65,10 @@ class PDFReference extends stream.Writable {
+     const encryptFn = this.document._security ? this.document._security.getEncryptFn(this.id, this.gen) : null;
+     if (this.chunks.length) {
+       let buffer = Buffer.concat(this.chunks);
++      if (this.compress) {
++        buffer = zlib.deflateSync(buffer);
++        this.data.Filter = 'FlateDecode';
++      }
+       if (encryptFn) {
+         buffer = encryptFn(buffer);
+       }

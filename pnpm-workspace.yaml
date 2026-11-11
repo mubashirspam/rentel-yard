@@ -7,3 +7,5 @@ onlyBuiltDependencies:
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+patchedDependencies:
+  '@react-pdf/pdfkit@5.1.1': patches/@react-pdf__pdfkit@5.1.1.patch

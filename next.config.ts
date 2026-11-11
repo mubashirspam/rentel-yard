@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
     // The LAN address a phone on the yard's wifi uses.
     '192.168.*.*',
   ],
+  /** The PDF font is read from disk, so ship it with the routes that render PDFs. */
+  outputFileTracingIncludes: {
+    '/api/bills/[id]/pdf': ['./lib/bills/fonts/**'],
+    '/api/customers/[id]/statement': ['./lib/bills/fonts/**'],
+  },
 };
 
 /**

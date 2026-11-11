@@ -22,6 +22,7 @@ import {
 import { formatDay, formatDayFull } from '../format';
 import { formatPaise } from '../money';
 import type { BillPayInfo } from './pay-info';
+import { PDF_FONT, pinFontTags, registerPdfFonts } from './pdf-fonts';
 import type { BillDetail } from './service';
 
 export type BillFormat = 'a4' | 'thermal';
@@ -30,13 +31,13 @@ export type BillFormat = 'a4' | 'thermal';
 const THERMAL_WIDTH = 226;
 
 const styles = StyleSheet.create({
-  page: { paddingVertical: 28, paddingHorizontal: 32, fontSize: 9, fontFamily: 'Helvetica' },
-  thermalPage: { paddingVertical: 12, paddingHorizontal: 10, fontSize: 7, fontFamily: 'Helvetica' },
+  page: { paddingVertical: 28, paddingHorizontal: 32, fontSize: 9, fontFamily: PDF_FONT },
+  thermalPage: { paddingVertical: 12, paddingHorizontal: 10, fontSize: 7, fontFamily: PDF_FONT },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
-  yardName: { fontSize: 13, fontFamily: 'Helvetica-Bold' },
+  yardName: { fontSize: 13, fontWeight: 700 },
   muted: { color: '#4a545e' },
-  invoiceNo: { fontSize: 11, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  invoiceNo: { fontSize: 11, fontWeight: 700, textAlign: 'right' },
 
   block: { marginBottom: 10 },
   row: { flexDirection: 'row' },
@@ -46,7 +47,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#15181c',
     paddingBottom: 3,
     marginBottom: 3,
-    fontFamily: 'Helvetica-Bold',
+    fontWeight: 700,
   },
   lineRow: { flexDirection: 'row', paddingVertical: 2 },
 
@@ -60,7 +61,7 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingVertical: 2 },
   totalLabel: { width: 120, textAlign: 'right', paddingRight: 10 },
   totalValue: { width: 80, textAlign: 'right' },
-  grand: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  grand: { fontWeight: 700, fontSize: 11 },
   rule: { borderTopWidth: 1, borderTopColor: '#15181c', marginTop: 4, paddingTop: 4 },
   terms: { marginTop: 18, fontSize: 7, color: '#4a545e' },
   minimumNote: { fontSize: 6.5, color: '#4a545e' },
@@ -76,9 +77,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   payThermal: { marginTop: 10, paddingTop: 6, borderTopWidth: 1, borderTopColor: '#15181c' },
-  payTitle: { fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 4 },
+  payTitle: { fontWeight: 700, fontSize: 11, marginBottom: 4 },
   payLine: { marginBottom: 2 },
-  payLink: { marginTop: 4, color: '#3f51c2' },
 });
 
 /**
@@ -136,14 +136,14 @@ export function BillDocument({
 }
 
 function Header({ bill, thermal }: { bill: BillDetail; thermal: boolean }) {
-  const period = `${formatDay(bill.periodFrom)} → ${formatDayFull(bill.periodTo)}`;
+  const period = `${formatDay(bill.periodFrom)} – ${formatDayFull(bill.periodTo)}`;
 
   if (thermal) {
     return (
       <View style={styles.block}>
         <Text style={styles.yardName}>{bill.org.name}</Text>
         {bill.org.phone && <Text style={styles.muted}>{bill.org.phone}</Text>}
-        <Text style={{ marginTop: 4, fontFamily: 'Helvetica-Bold' }}>{bill.invoiceNo}</Text>
+        <Text style={{ marginTop: 4, fontWeight: 700 }}>{bill.invoiceNo}</Text>
         <Text style={styles.muted}>{period}</Text>
         <Text style={{ marginTop: 4 }}>{bill.customer.name}</Text>
         <Text style={styles.muted}>
@@ -173,7 +173,7 @@ function Header({ bill, thermal }: { bill: BillDetail; thermal: boolean }) {
       </View>
 
       <View style={styles.block}>
-        <Text style={{ fontFamily: 'Helvetica-Bold' }}>{bill.customer.name}</Text>
+        <Text style={{ fontWeight: 700 }}>{bill.customer.name}</Text>
         <Text style={styles.muted}>{bill.customer.mobile}</Text>
         <Text style={styles.muted}>{bill.account.siteName}</Text>
       </View>
@@ -307,8 +307,11 @@ function TotalLine({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** QR + UPI ID + bank details + pay link. Nothing here collects money. */
-function PayBlock({
+/**
+ * QR + UPI ID + bank details. No pay link on the PDF: the link goes in the
+ * WhatsApp message, where it can be tapped. Nothing here collects money.
+ */
+export function PayBlock({
   info,
   qr,
   thermal,
@@ -335,7 +338,6 @@ function PayBlock({
           {line}
         </Text>
       ))}
-      <Text style={styles.payLink}>{info.url}</Text>
     </View>
   );
 
@@ -362,5 +364,6 @@ export async function renderBillPdf(
   format: BillFormat,
   pay?: { info: BillPayInfo; qr: string | null },
 ): Promise<Buffer> {
-  return renderToBuffer(<BillDocument bill={bill} format={format} pay={pay} />);
+  registerPdfFonts();
+  return pinFontTags(await renderToBuffer(<BillDocument bill={bill} format={format} pay={pay} />));
 }

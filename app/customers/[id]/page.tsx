@@ -223,6 +223,27 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         )}
       </div>
 
+      {showMoney && (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+          <a
+            href={`/api/customers/${customer.id}/statement`}
+            target="_blank"
+            rel="noreferrer"
+            className="tap flex items-center justify-center rounded-xl border border-rule bg-card font-semibold"
+          >
+            Statement PDF (all bills)
+          </a>
+          <a
+            href={`/api/customers/${customer.id}/statement?scope=unpaid`}
+            target="_blank"
+            rel="noreferrer"
+            className="tap flex items-center justify-center rounded-xl border border-rule bg-card font-semibold"
+          >
+            Unpaid bills PDF
+          </a>
+        </div>
+      )}
+
       <div className="mt-4">
         <Tabs
           initial={holding.length === 0 && toBill.length > 0 ? 1 : 0}

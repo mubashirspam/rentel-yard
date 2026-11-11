@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest';
 
 import { billPayInfo, qrPng } from './pay-info';
 import { renderBillPdf } from './pdf';
+import type { CustomerStatement } from './statement';
+import { renderStatementPdf } from './statement-pdf';
 import type { BillDetail } from './service';
 
 const BILL: BillDetail = {
@@ -106,6 +108,13 @@ describe('bill PDF', () => {
     expect(pdf.byteLength).toBeGreaterThan(1000);
   }, 30_000);
 
+  it('embeds Noto Sans, which has the ₹ sign (Helvetica printed "¹")', async () => {
+    const pdf = await renderBillPdf(BILL, 'a4');
+
+    expect(pdf.toString('latin1')).toContain('NotoSans');
+    expect(pdf.toString('latin1')).not.toContain('/Helvetica');
+  }, 30_000);
+
   it('renders the 80mm thermal variant', async () => {
     const pdf = await renderBillPdf(BILL, 'thermal');
 
@@ -149,4 +158,46 @@ describe('bill PDF', () => {
       expect(pdf.length).toBeGreaterThan((await renderBillPdf(BILL, format)).length);
     }
   });
+});
+
+describe('customer statement PDF', () => {
+  const statement: CustomerStatement = {
+    asOf: '2026-08-01',
+    scope: 'all',
+    customer: BILL.customer,
+    org: BILL.org,
+    bills: [
+      BILL,
+      {
+        ...BILL,
+        id: 'bill-2',
+        invoiceNo: 'INV-2026-0050',
+        periodFrom: '2026-07-01',
+        periodTo: '2026-07-31',
+        allocated: 0,
+        outstanding: 910_000,
+        status: 'pending',
+        payments: [],
+      },
+    ],
+    payments: [
+      {
+        id: 'payment-1',
+        siteName: 'Kakkanad site',
+        paidOn: '2026-07-05',
+        amount: 500_000,
+        discount: 0,
+        method: 'upi',
+        reference: 'UPI/123456',
+      },
+    ],
+    totals: { billed: 1_820_000, settled: 500_000, outstanding: 1_320_000 },
+  };
+
+  it('renders every bill in one document', async () => {
+    const pdf = await renderStatementPdf(statement);
+
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(pdf.toString('latin1')).toContain('NotoSans');
+  }, 30_000);
 });
